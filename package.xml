@@ -1,0 +1,26 @@
+<?xml version="1.0"?>
+format="2"
+  <name>grid_map_2d_mapper</name>
+  <version>0.0.0</version>
+  <description>The grid_map_2d_mapper package</description>
+
+  <maintainer email="kohlbrecher@sim.tu-darmstadt.de">Stefan Kohlbrecher</maintainer>
+
+  <license>BSD</license>
+  
+  <buildtool_depend>catkin</buildtool_depend>
+  <depend>grid_map_ros</depend>
+  <depend>message_filters</depend>
+  <depend>nodelet</depend>
+  <depend>roscpp</depend>
+  <depend>sensor_msgs</depend>
+  <depend>tf2</depend>
+  <depend>tf2_ros</depend>
+  <depend>tf2_sensor_msgs</depend>
+  <depend>laser_geometry</depend>
+
+  <export>
+    <nodelet plugin="${prefix}/nodelets.xml"/>
+
+  </export>
+</package>

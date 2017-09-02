@@ -1,0 +1,11 @@
+<library path="lib/libgrid_map_2d_mapper">
+
+  <class name="grid_map_2d_mapper/grid_map_2d_mapper_nodelet"
+	 type="grid_map_2d_mapper::GridMap2DMapperNodelet"
+	 base_class_type="nodelet::Nodelet">
+    <description>
+      Nodelet to generate  sensor_msgs/PointCloud2 to sensor_msgs/LaserScans.
+    </description>
+  </class>
+
+</library>
