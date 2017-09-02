@@ -38,13 +38,13 @@
  * Author: Stefan Kohlbrecher
  */
 
-#include <pointcloud_to_laserscan/pointcloud_to_laserscan_nodelet.h>
+#include <grid_map_2d_mapper/grid_map_2d_mapper_nodelet.h>
 #include <sensor_msgs/LaserScan.h>
 #include <pluginlib/class_list_macros.h>
 #include <sensor_msgs/point_cloud2_iterator.h>
 #include <tf2_sensor_msgs/tf2_sensor_msgs.h>
 
-namespace pointcloud_to_laserscan
+namespace grid_map_2d_mapper
 {
 
   GridMap2DMapperNodelet::GridMap2DMapperNodelet() {}
@@ -238,4 +238,4 @@ namespace pointcloud_to_laserscan
 
 }
 
-PLUGINLIB_DECLARE_CLASS(pointcloud_to_laserscan, GridMap2DMapperNodelet, pointcloud_to_laserscan::GridMap2DMapperNodelet, nodelet::Nodelet);
+PLUGINLIB_DECLARE_CLASS(grid_map_2d_mapper, GridMap2DMapperNodelet, grid_map_2d_mapper::GridMap2DMapperNodelet, nodelet::Nodelet);

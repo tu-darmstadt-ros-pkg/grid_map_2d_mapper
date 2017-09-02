@@ -32,7 +32,7 @@ include_directories(
 )
 
 add_library(grid_map_2d_mapper src/grid_map_2d_mapper_nodelet.cpp)
-target_link_libraries(pointcloud_to_laserscan ${catkin_LIBRARIES})
+target_link_libraries(grid_map_2d_mapper ${catkin_LIBRARIES})
 
 add_executable(grid_map_2d_mapper_node src/grid_map_2d_mapper_node.cpp)
 target_link_libraries(grid_map_2d_mapper_node grid_map_2d_mapper ${catkin_LIBRARIES})
