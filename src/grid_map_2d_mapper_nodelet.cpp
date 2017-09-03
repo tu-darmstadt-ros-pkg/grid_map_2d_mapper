@@ -124,6 +124,7 @@ namespace grid_map_2d_mapper
     grid_map_.add("occupancy_prob");
     //grid_map_.add("update_time");
     grid_map_.setGeometry(grid_map::Length(2.0, 2.0), 0.05);
+    grid_map_.setFrameId("world");
 
 
     log_odds_free_ = probToLogOdds(0.4);
@@ -330,7 +331,7 @@ namespace grid_map_2d_mapper
     //lengths.cwise() += 0.5;
 
     grid_map::GridMap update_area;
-    update_area.setGeometry(lengths.array() + 0.5, 0.05, center);
+    update_area.setGeometry(lengths.array() + 0.5, grid_map_.getResolution(), center);
 
     //update_area.add("occupancy", 0);
     //grid_map_.addDataFrom(update_area, true, false, true);
@@ -389,10 +390,10 @@ namespace grid_map_2d_mapper
     }
 
     if (grid_map_pub_.getNumSubscribers() > 0){
+
       grid_map_msgs::GridMap grid_map_msg;
 
       grid_map::GridMapRosConverter::toMessage(grid_map_, grid_map_msg);
-      grid_map_msg.info.header.frame_id = "world";
       grid_map_pub_.publish(grid_map_msg);
     }
 
@@ -418,8 +419,6 @@ namespace grid_map_2d_mapper
       nav_msgs::OccupancyGrid occ_grid_msg;
 
       grid_map::GridMapRosConverter::toOccupancyGrid(grid_map_, "occupancy_prob", 0.0, 1.0, occ_grid_msg);
-      occ_grid_msg.header.frame_id = "world";
-
       map_pub_.publish(occ_grid_msg);
     }
 
