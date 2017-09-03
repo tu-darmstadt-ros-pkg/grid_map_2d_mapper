@@ -51,6 +51,9 @@
 #include "message_filters/subscriber.h"
 #include "sensor_msgs/PointCloud2.h"
 
+#include <laser_geometry/laser_geometry.h>
+#include <grid_map_core/grid_map_core.hpp>
+
 
 namespace grid_map_2d_mapper
 {
@@ -91,6 +94,11 @@ namespace grid_map_2d_mapper
     double tolerance_;
     double min_height_, max_height_, angle_min_, angle_max_, angle_increment_, scan_time_, range_min_, range_max_;
     bool use_inf_;
+
+    laser_geometry::LaserProjection projector_;
+    grid_map::GridMap grid_map_;
+
+    std::vector<Eigen::Vector3d> end_points_;
   };
 
 }  // grid_map_2d_mapper

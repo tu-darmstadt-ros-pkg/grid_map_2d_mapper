@@ -43,6 +43,7 @@
 #include <pluginlib/class_list_macros.h>
 #include <sensor_msgs/point_cloud2_iterator.h>
 #include <tf2_sensor_msgs/tf2_sensor_msgs.h>
+#include <tf2_eigen/tf2_eigen.h>
 
 namespace grid_map_2d_mapper
 {
@@ -107,6 +108,9 @@ namespace grid_map_2d_mapper
     pub_ = nh_.advertise<sensor_msgs::LaserScan>("scan", 10,
                                                  boost::bind(&GridMap2DMapperNodelet::connectCb, this),
                                                  boost::bind(&GridMap2DMapperNodelet::disconnectCb, this));
+
+    grid_map_.add("occupancy", 0.0);
+    grid_map_.add("update_time", 0.0);
   }
 
   void GridMap2DMapperNodelet::connectCb()
@@ -233,7 +237,97 @@ namespace grid_map_2d_mapper
       }
 
     }
-    pub_.publish(output);
+
+    if (pub_.getNumSubscribers() > 0)
+    {
+      pub_.publish(output);
+    }
+
+    sensor_msgs::PointCloud2 cloud_reduced;
+    projector_.projectLaser(output, cloud_reduced);
+
+
+    ros::Duration wait_duration(1.0);
+    geometry_msgs::TransformStamped to_world_tf;
+
+    try{
+      to_world_tf = tf2_->lookupTransform("world", cloud_reduced.header.frame_id, cloud_reduced.header.stamp, wait_duration);
+    }
+    catch (tf2::TransformException &ex)
+    {
+      ROS_WARN("Cannot lookup transform, skipping map update!: %s",ex.what());
+      return;
+    }
+
+    Eigen::Affine3d to_world_eigen = tf2::transformToEigen(to_world_tf);
+
+    //geometry_msgs::PointStamped sensor_center_world;
+    //sensor_center_world = to_world_tf_.
+
+    Eigen::Vector3d sensor_frame_world_pos (to_world_eigen.translation());
+
+    grid_map::Matrix& grid_data = grid_map_["occupancy"];
+
+
+
+    grid_map::Index start;
+    grid_map_.getIndex(grid_map::Position(sensor_frame_world_pos[0],sensor_frame_world_pos[1]), start);
+
+
+    end_points_.clear();
+
+    //grid_map_.extendToInclude()
+    Eigen::Vector2d min_coords(std::numeric_limits<double>::max(),    std::numeric_limits<double>::max());
+    Eigen::Vector2d max_coords(std::numeric_limits<double>::lowest(), std::numeric_limits<double>::lowest());
+
+    for (sensor_msgs::PointCloud2ConstIterator<float>
+              iter_x(cloud_reduced, "x"), iter_y(cloud_reduced, "y"), iter_z(cloud_reduced, "z");
+              iter_x != iter_x.end();
+              ++iter_x, ++iter_y, ++iter_z)
+    {
+      Eigen::Vector3d end_point (to_world_eigen * Eigen::Vector3d(*iter_x, *iter_y, *iter_z));
+
+      if (max_coords.x() < end_point.x())
+          max_coords.x() = end_point.x();
+      if (max_coords.y() < end_point.y())
+          max_coords.y() = end_point.y();
+      if (min_coords.x() > end_point.x())
+          min_coords.x() = end_point.x();
+      if (min_coords.y() > end_point.y())
+          min_coords.y() = end_point.y();
+
+      end_points_.push_back(end_point);
+
+    }
+
+    Eigen::Vector2d center  ( (min_coords + max_coords) * 0.5 );
+    Eigen::Vector2d lengths (max_coords - min_coords);
+    //lengths.cwise() += 0.5;
+
+    grid_map::GridMap update_area;
+    update_area.setGeometry(lengths.array() + 0.5, 0.05, center);
+      //Eigen::Vector3d end_point (to_world_eigen * Eigen::Vector3d(*iter_x, *iter_y, *iter_z));
+
+    grid_map_.extendToInclude(update_area);
+
+
+    size_t end_points_size = end_points_.size();
+    for (size_t i = 0; i < end_points_size; ++i){
+
+        const Eigen::Vector3d& end_point (end_points_[i]);
+        grid_map::Index end;
+        grid_map_.getIndex(grid_map::Position(end_point[0], end_point[1]), end);
+
+
+        for (grid_map::LineIterator iterator(grid_map_, start, end);
+            !iterator.isPastEnd(); ++iterator) {
+
+          const grid_map::Index index(*iterator);
+          grid_data(index(0), index(1)) = 0.5;
+
+        }
+    }
+
   }
 
 }
