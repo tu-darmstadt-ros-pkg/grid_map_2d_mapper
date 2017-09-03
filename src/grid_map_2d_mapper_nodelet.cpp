@@ -66,7 +66,7 @@ namespace grid_map_2d_mapper
 
     private_nh_.param<double>("angle_min", angle_min_, -M_PI / 1.0);
     private_nh_.param<double>("angle_max", angle_max_, M_PI / 1.0);
-    private_nh_.param<double>("angle_increment", angle_increment_, M_PI / 360.0);
+    private_nh_.param<double>("angle_increment", angle_increment_, M_PI / 180.0);
     private_nh_.param<double>("scan_time", scan_time_, 0.0);
     private_nh_.param<double>("range_min", range_min_, 0.45);
     private_nh_.param<double>("range_max", range_max_, 15.0);
@@ -127,7 +127,7 @@ namespace grid_map_2d_mapper
 
 
     log_odds_free_ = probToLogOdds(0.4);
-    log_odds_occ_  = probToLogOdds(0.6);
+    log_odds_occ_  = probToLogOdds(0.75);
 
 
     min_log_odds_ = log_odds_free_ * 20;
@@ -397,8 +397,30 @@ namespace grid_map_2d_mapper
     }
 
     if (map_pub_.getNumSubscribers() > 0){
+
+      grid_map::Matrix& grid_data_prob = grid_map_["occupancy_prob"];
+
+
       //grid_map::GridMapRosConverter::toOccupancyGrid()
-      //  for (size_t i = 0)
+      size_t total_size = grid_data.rows() * grid_data.cols();
+      for (size_t i = 0; i < total_size; ++i){
+        const float& cell = grid_data.data()[i];
+
+        if (cell != cell){
+          grid_data_prob.data()[i] = cell;
+        }else if (cell < 0.0){
+          grid_data_prob.data()[i] = 0.0;
+        }else{
+          grid_data_prob.data()[i] = 1.0;
+        }
+      }
+
+      nav_msgs::OccupancyGrid occ_grid_msg;
+
+      grid_map::GridMapRosConverter::toOccupancyGrid(grid_map_, "occupancy_prob", 0.0, 1.0, occ_grid_msg);
+      occ_grid_msg.header.frame_id = "world";
+
+      map_pub_.publish(occ_grid_msg);
     }
 
   }
