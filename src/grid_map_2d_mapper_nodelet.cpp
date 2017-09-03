@@ -45,6 +45,10 @@
 #include <tf2_sensor_msgs/tf2_sensor_msgs.h>
 #include <tf2_eigen/tf2_eigen.h>
 
+#include <grid_map_ros/grid_map_ros.hpp>
+#include <nav_msgs/OccupancyGrid.h>
+#include <grid_map_msgs/GridMap.h>
+
 namespace grid_map_2d_mapper
 {
 
@@ -57,15 +61,15 @@ namespace grid_map_2d_mapper
 
     private_nh_.param<std::string>("target_frame", target_frame_, "");
     private_nh_.param<double>("transform_tolerance", tolerance_, 0.01);
-    private_nh_.param<double>("min_height", min_height_, 0.0);
-    private_nh_.param<double>("max_height", max_height_, 1.0);
+    private_nh_.param<double>("min_height", min_height_, -0.1);
+    private_nh_.param<double>("max_height", max_height_, 1.3);
 
-    private_nh_.param<double>("angle_min", angle_min_, -M_PI / 2.0);
-    private_nh_.param<double>("angle_max", angle_max_, M_PI / 2.0);
+    private_nh_.param<double>("angle_min", angle_min_, -M_PI / 1.0);
+    private_nh_.param<double>("angle_max", angle_max_, M_PI / 1.0);
     private_nh_.param<double>("angle_increment", angle_increment_, M_PI / 360.0);
-    private_nh_.param<double>("scan_time", scan_time_, 1.0 / 30.0);
+    private_nh_.param<double>("scan_time", scan_time_, 0.0);
     private_nh_.param<double>("range_min", range_min_, 0.45);
-    private_nh_.param<double>("range_max", range_max_, 4.0);
+    private_nh_.param<double>("range_max", range_max_, 15.0);
 
     int concurrency_level;
     private_nh_.param<int>("concurrency_level", concurrency_level, 1);
@@ -96,12 +100,14 @@ namespace grid_map_2d_mapper
     {
       tf2_.reset(new tf2_ros::Buffer());
       tf2_listener_.reset(new tf2_ros::TransformListener(*tf2_));
-      message_filter_.reset(new MessageFilter(sub_, *tf2_, target_frame_, input_queue_size_, nh_));
+      message_filter_.reset(new MessageFilter(sub_, *tf2_, target_frame_, 20, nh_));
       message_filter_->registerCallback(boost::bind(&GridMap2DMapperNodelet::cloudCb, this, _1));
       message_filter_->registerFailureCallback(boost::bind(&GridMap2DMapperNodelet::failureCb, this, _1, _2));
     }
     else // otherwise setup direct subscription
     {
+      tf2_.reset(new tf2_ros::Buffer());
+      tf2_listener_.reset(new tf2_ros::TransformListener(*tf2_));
       sub_.registerCallback(boost::bind(&GridMap2DMapperNodelet::cloudCb, this, _1));
     }
 
@@ -109,8 +115,24 @@ namespace grid_map_2d_mapper
                                                  boost::bind(&GridMap2DMapperNodelet::connectCb, this),
                                                  boost::bind(&GridMap2DMapperNodelet::disconnectCb, this));
 
-    grid_map_.add("occupancy", 0.0);
-    grid_map_.add("update_time", 0.0);
+    map_pub_ = nh_.advertise<nav_msgs::OccupancyGrid>("/map",10,false);
+    grid_map_pub_ = nh_.advertise<grid_map_msgs::GridMap>("/debug_map",10,false);
+
+
+
+    grid_map_.add("occupancy_log_odds");
+    grid_map_.add("occupancy_prob");
+    //grid_map_.add("update_time");
+    grid_map_.setGeometry(grid_map::Length(2.0, 2.0), 0.05);
+
+
+    log_odds_free_ = probToLogOdds(0.4);
+    log_odds_occ_  = probToLogOdds(0.6);
+
+
+    min_log_odds_ = log_odds_free_ * 20;
+    max_log_odds_ = log_odds_occ_ * 20;
+    ROS_INFO("log odds free: %f log odds occ: %f", log_odds_free_, log_odds_occ_);
   }
 
   void GridMap2DMapperNodelet::connectCb()
@@ -119,7 +141,7 @@ namespace grid_map_2d_mapper
     if (pub_.getNumSubscribers() > 0 && sub_.getSubscriber().getNumPublishers() == 0)
     {
       NODELET_INFO("Got a subscriber to scan, starting subscriber to pointcloud");
-      sub_.subscribe(nh_, "cloud_in", input_queue_size_);
+      sub_.subscribe(nh_, "/scan_matched_points2", input_queue_size_);
     }
   }
 
@@ -243,6 +265,8 @@ namespace grid_map_2d_mapper
       pub_.publish(output);
     }
 
+    //return;
+
     sensor_msgs::PointCloud2 cloud_reduced;
     projector_.projectLaser(output, cloud_reduced);
 
@@ -266,17 +290,18 @@ namespace grid_map_2d_mapper
 
     Eigen::Vector3d sensor_frame_world_pos (to_world_eigen.translation());
 
-    grid_map::Matrix& grid_data = grid_map_["occupancy"];
+    //return;
+
+    grid_map::Matrix& grid_data = grid_map_["occupancy_log_odds"];
 
 
 
-    grid_map::Index start;
-    grid_map_.getIndex(grid_map::Position(sensor_frame_world_pos[0],sensor_frame_world_pos[1]), start);
-
+    //grid_map::Index start;
+    //grid_map_.getIndex(grid_map::Position(sensor_frame_world_pos[0],sensor_frame_world_pos[1]), start);
+    grid_map::Position sensor_position (sensor_frame_world_pos.x(), sensor_frame_world_pos.y());
 
     end_points_.clear();
 
-    //grid_map_.extendToInclude()
     Eigen::Vector2d min_coords(std::numeric_limits<double>::max(),    std::numeric_limits<double>::max());
     Eigen::Vector2d max_coords(std::numeric_limits<double>::lowest(), std::numeric_limits<double>::lowest());
 
@@ -306,29 +331,83 @@ namespace grid_map_2d_mapper
 
     grid_map::GridMap update_area;
     update_area.setGeometry(lengths.array() + 0.5, 0.05, center);
-      //Eigen::Vector3d end_point (to_world_eigen * Eigen::Vector3d(*iter_x, *iter_y, *iter_z));
+
+    //update_area.add("occupancy", 0);
+    //grid_map_.addDataFrom(update_area, true, false, true);
 
     grid_map_.extendToInclude(update_area);
-
+    //grid_map_.addDataFrom(update_area, true, false, true);
 
     size_t end_points_size = end_points_.size();
+
+    std::vector<grid_map::Index> curr_ray;
+
     for (size_t i = 0; i < end_points_size; ++i){
 
         const Eigen::Vector3d& end_point (end_points_[i]);
-        grid_map::Index end;
-        grid_map_.getIndex(grid_map::Position(end_point[0], end_point[1]), end);
+        grid_map::Position end_point_position(end_point.x(), end_point.y());
 
+        curr_ray.clear();
 
-        for (grid_map::LineIterator iterator(grid_map_, start, end);
+        for (grid_map::LineIterator iterator(grid_map_, sensor_position, end_point_position);
             !iterator.isPastEnd(); ++iterator) {
 
-          const grid_map::Index index(*iterator);
-          grid_data(index(0), index(1)) = 0.5;
+          curr_ray.push_back(grid_map::Index(*iterator));
+          //const grid_map::Index index(*iterator);
+          //grid_data(index(0), index(1)) = 0.5;
 
         }
+
+        size_t curr_ray_size = curr_ray.size();
+
+        if (curr_ray_size > 2){
+          size_t r = 0;
+          for (; r < curr_ray_size-1; ++r){
+              const grid_map::Index& index = curr_ray[r];
+
+              //float& cell
+
+              if (grid_data(index(0), index(1)) != grid_data(index(0), index(1)))
+                grid_data(index(0), index(1)) = 0.0;
+
+
+              if (min_log_odds_ < grid_data(index(0), index(1)))
+                grid_data(index(0), index(1)) += log_odds_free_;
+
+
+          }
+
+          const grid_map::Index& index = curr_ray[r];
+
+          if (grid_data(index(0), index(1)) != grid_data(index(0), index(1)))
+            grid_data(index(0), index(1)) = 0.0;
+
+          if (max_log_odds_ > grid_data(index(0), index(1)))
+            grid_data(index(0), index(1)) += log_odds_occ_;
+        }
+
+    }
+
+    if (grid_map_pub_.getNumSubscribers() > 0){
+      grid_map_msgs::GridMap grid_map_msg;
+
+      grid_map::GridMapRosConverter::toMessage(grid_map_, grid_map_msg);
+      grid_map_msg.info.header.frame_id = "world";
+      grid_map_pub_.publish(grid_map_msg);
+    }
+
+    if (map_pub_.getNumSubscribers() > 0){
+      //grid_map::GridMapRosConverter::toOccupancyGrid()
+      //  for (size_t i = 0)
     }
 
   }
+
+  float GridMap2DMapperNodelet::probToLogOdds(float prob)
+    {
+      float odds = prob / (1.0f - prob);
+      return log(odds);
+    }
 
 }
 

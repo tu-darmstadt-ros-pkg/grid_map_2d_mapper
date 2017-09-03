@@ -79,6 +79,10 @@ namespace grid_map_2d_mapper
 
     void disconnectCb();
 
+
+
+    float probToLogOdds(float prob);
+
     ros::NodeHandle nh_, private_nh_;
     ros::Publisher pub_;
     boost::mutex connect_mutex_;
@@ -94,6 +98,16 @@ namespace grid_map_2d_mapper
     double tolerance_;
     double min_height_, max_height_, angle_min_, angle_max_, angle_increment_, scan_time_, range_min_, range_max_;
     bool use_inf_;
+
+    float log_odds_free_;
+    float log_odds_occ_;
+
+    float min_log_odds_;
+    float max_log_odds_;
+
+
+    ros::Publisher map_pub_;
+    ros::Publisher grid_map_pub_;
 
     laser_geometry::LaserProjection projector_;
     grid_map::GridMap grid_map_;
