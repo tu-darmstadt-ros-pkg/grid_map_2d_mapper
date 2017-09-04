@@ -111,11 +111,19 @@ namespace grid_map_2d_mapper
       sub_.registerCallback(boost::bind(&GridMap2DMapperNodelet::cloudCb, this, _1));
     }
 
-    pub_ = nh_.advertise<sensor_msgs::LaserScan>("scan", 10,
-                                                 boost::bind(&GridMap2DMapperNodelet::connectCb, this),
-                                                 boost::bind(&GridMap2DMapperNodelet::disconnectCb, this));
+    //pub_ = nh_.advertise<sensor_msgs::LaserScan>("scan", 10,
+    //                                             boost::bind(&GridMap2DMapperNodelet::connectCb, this),
+    //                                             boost::bind(&GridMap2DMapperNodelet::disconnectCb, this));
 
-    map_pub_ = nh_.advertise<nav_msgs::OccupancyGrid>("/map",10,false);
+    //map_pub_ = nh_.advertise<nav_msgs::OccupancyGrid>("/map",10,false);
+
+    pub_ = nh_.advertise<sensor_msgs::LaserScan>("scan", 10, false);
+
+    map_pub_ = nh_.advertise<nav_msgs::OccupancyGrid>("/map",10,
+                                                      boost::bind(&GridMap2DMapperNodelet::connectCb, this),
+                                                      boost::bind(&GridMap2DMapperNodelet::disconnectCb, this));
+
+
     grid_map_pub_ = nh_.advertise<grid_map_msgs::GridMap>("/debug_map",10,false);
 
 
@@ -139,9 +147,9 @@ namespace grid_map_2d_mapper
   void GridMap2DMapperNodelet::connectCb()
   {
     boost::mutex::scoped_lock lock(connect_mutex_);
-    if (pub_.getNumSubscribers() > 0 && sub_.getSubscriber().getNumPublishers() == 0)
+    if (map_pub_.getNumSubscribers() > 0 && sub_.getSubscriber().getNumPublishers() == 0)
     {
-      NODELET_INFO("Got a subscriber to scan, starting subscriber to pointcloud");
+      NODELET_INFO("Got a subscriber to map, starting subscriber to pointcloud");
       sub_.subscribe(nh_, "/scan_matched_points2", input_queue_size_);
     }
   }
@@ -149,7 +157,7 @@ namespace grid_map_2d_mapper
   void GridMap2DMapperNodelet::disconnectCb()
   {
     boost::mutex::scoped_lock lock(connect_mutex_);
-    if (pub_.getNumSubscribers() == 0)
+    if (map_pub_.getNumSubscribers() == 0)
     {
       NODELET_INFO("No subscibers to scan, shutting down subscriber to pointcloud");
       sub_.unsubscribe();
