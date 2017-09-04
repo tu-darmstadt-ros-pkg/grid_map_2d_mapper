@@ -1,0 +1,10 @@
+<?xml version="1.0"?>
+
+<launch>
+  
+  
+  <node name="grid_map_2d_mapper" type="grid_map_2d_mapper_node" pkg="grid_map_2d_mapper" output="screen" respawn="true">
+  </node>
+  
+
+</launch>
