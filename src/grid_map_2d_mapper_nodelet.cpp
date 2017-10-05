@@ -159,7 +159,7 @@ namespace grid_map_2d_mapper
     boost::mutex::scoped_lock lock(connect_mutex_);
     if (map_pub_.getNumSubscribers() == 0)
     {
-      NODELET_INFO("No subscibers to scan, shutting down subscriber to pointcloud");
+      NODELET_INFO("No subscribers to scan, shutting down subscriber to pointcloud");
       sub_.unsubscribe();
     }
   }
