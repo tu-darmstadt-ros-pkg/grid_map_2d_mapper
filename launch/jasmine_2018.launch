@@ -1,0 +1,14 @@
+<?xml version="1.0"?>
+
+<launch>
+  
+  
+  <node name="grid_map_2d_mapper" type="grid_map_2d_mapper_node" pkg="grid_map_2d_mapper" output="screen" respawn="true">
+      <param name="min_height" value="0.1"/>    
+      <param name="max_height" value="1.0"/>
+      <param name="range_min" value="0.2"/>
+      <param name="target_frame" value="base_stabilized"/>      
+  </node>
+  
+
+</launch>
