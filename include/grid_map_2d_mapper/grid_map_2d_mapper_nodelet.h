@@ -50,6 +50,7 @@
 #include "tf2_ros/message_filter.h"
 #include "message_filters/subscriber.h"
 #include "sensor_msgs/PointCloud2.h"
+#include <std_msgs/String.h>
 
 #include <laser_geometry/laser_geometry.h>
 #include <grid_map_core/grid_map_core.hpp>
@@ -78,6 +79,8 @@ namespace grid_map_2d_mapper
     void connectCb();
 
     void disconnectCb();
+    
+    void syscommandCallback(const std_msgs::String::ConstPtr& msg);
 
 
 
@@ -108,6 +111,8 @@ namespace grid_map_2d_mapper
 
     ros::Publisher map_pub_;
     ros::Publisher grid_map_pub_;
+    
+    ros::Subscriber syscommand_subscriber_;
 
     laser_geometry::LaserProjection projector_;
     grid_map::GridMap grid_map_;

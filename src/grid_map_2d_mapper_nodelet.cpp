@@ -125,8 +125,8 @@ namespace grid_map_2d_mapper
 
 
     grid_map_pub_ = nh_.advertise<grid_map_msgs::GridMap>("/debug_map",10,false);
-
-
+    
+    syscommand_subscriber_ = nh_.subscribe("syscommand", 10, &GridMap2DMapperNodelet::syscommandCallback, this);
 
     grid_map_.add("occupancy_log_odds");
     grid_map_.add("occupancy_prob");
@@ -161,6 +161,15 @@ namespace grid_map_2d_mapper
     {
       NODELET_INFO("No subscribers to scan, shutting down subscriber to pointcloud");
       sub_.unsubscribe();
+    }
+  }
+  
+  void GridMap2DMapperNodelet::syscommandCallback(const std_msgs::String::ConstPtr& msg)
+  {
+    if(msg->data == "reset" || msg->data == "reset_2d_map"){
+      grid_map_.clear("occupancy_log_odds");
+      grid_map_.clear("occupancy_prob");
+      ROS_INFO("Cleared grid_map_2d_mapper map!");
     }
   }
 
