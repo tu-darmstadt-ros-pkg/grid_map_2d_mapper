@@ -16,13 +16,18 @@ find_package(catkin REQUIRED COMPONENTS
   tf2_ros
   tf2_sensor_msgs
   laser_geometry
+  dynamic_reconfigure
 )
 
+generate_dynamic_reconfigure_options(
+  cfg/GridMap2DMapper.cfg
+  #...
+)
 
 catkin_package(
   INCLUDE_DIRS include
   LIBRARIES grid_map_2d_mapper
-  CATKIN_DEPENDS roscpp message_filters nodelet sensor_msgs tf2 tf2_ros
+  CATKIN_DEPENDS roscpp message_filters nodelet sensor_msgs tf2 tf2_ros dynamic_reconfigure
 )
 
 include_directories(
@@ -32,6 +37,7 @@ include_directories(
 
 add_library(grid_map_2d_mapper src/grid_map_2d_mapper_nodelet.cpp)
 target_link_libraries(grid_map_2d_mapper ${catkin_LIBRARIES})
+add_dependencies(grid_map_2d_mapper ${PROJECT_NAME}_gencfg)
 
 add_executable(grid_map_2d_mapper_node src/grid_map_2d_mapper_node.cpp)
 target_link_libraries(grid_map_2d_mapper_node grid_map_2d_mapper ${catkin_LIBRARIES})

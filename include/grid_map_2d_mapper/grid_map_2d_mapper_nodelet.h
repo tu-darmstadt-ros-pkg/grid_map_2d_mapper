@@ -55,6 +55,9 @@
 #include <laser_geometry/laser_geometry.h>
 #include <grid_map_core/grid_map_core.hpp>
 
+#include <dynamic_reconfigure/server.h>
+#include <grid_map_2d_mapper/GridMap2DMapperConfig.h>
+
 
 namespace grid_map_2d_mapper
 {
@@ -75,6 +78,8 @@ namespace grid_map_2d_mapper
     void cloudCb(const sensor_msgs::PointCloud2ConstPtr &cloud_msg);
     void failureCb(const sensor_msgs::PointCloud2ConstPtr &cloud_msg,
         tf2_ros::filter_failure_reasons::FilterFailureReason reason);
+    
+    void reconfigureCallback(grid_map_2d_mapper::GridMap2DMapperConfig &config, uint32_t level);
 
     void connectCb();
 
@@ -94,6 +99,10 @@ namespace grid_map_2d_mapper
     boost::shared_ptr<tf2_ros::TransformListener> tf2_listener_;
     message_filters::Subscriber<sensor_msgs::PointCloud2> sub_;
     boost::shared_ptr<MessageFilter> message_filter_;
+    
+    typedef dynamic_reconfigure::Server<grid_map_2d_mapper::GridMap2DMapperConfig> ReconfigureServer;
+    boost::shared_ptr<ReconfigureServer> dyn_rec_server_;
+    boost::recursive_mutex config_mutex_;
 
     // ROS Parameters
     unsigned int input_queue_size_;

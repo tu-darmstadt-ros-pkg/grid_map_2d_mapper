@@ -61,8 +61,8 @@ namespace grid_map_2d_mapper
 
     private_nh_.param<std::string>("target_frame", target_frame_, "");
     private_nh_.param<double>("transform_tolerance", tolerance_, 0.01);
-    private_nh_.param<double>("min_height", min_height_, -0.1);
-    private_nh_.param<double>("max_height", max_height_, 1.3);
+    //private_nh_.param<double>("min_height", min_height_, -0.1);
+    //private_nh_.param<double>("max_height", max_height_, 1.3);
 
     private_nh_.param<double>("angle_min", angle_min_, -M_PI / 1.0);
     private_nh_.param<double>("angle_max", angle_max_, M_PI / 1.0);
@@ -74,6 +74,9 @@ namespace grid_map_2d_mapper
     int concurrency_level;
     private_nh_.param<int>("concurrency_level", concurrency_level, 1);
     private_nh_.param<bool>("use_inf", use_inf_, true);
+    
+    dyn_rec_server_.reset(new ReconfigureServer(config_mutex_, private_nh_));
+    dyn_rec_server_->setCallback(boost::bind(&GridMap2DMapperNodelet::reconfigureCallback, this, _1, _2));
 
     //Check if explicitly single threaded, otherwise, let nodelet manager dictate thread pool size
     if (concurrency_level == 1)
@@ -171,6 +174,13 @@ namespace grid_map_2d_mapper
       grid_map_.clear("occupancy_prob");
       ROS_INFO("Cleared grid_map_2d_mapper map!");
     }
+  }
+  
+  void GridMap2DMapperNodelet::reconfigureCallback(grid_map_2d_mapper::GridMap2DMapperConfig &config, uint32_t level) {
+    ROS_INFO("Reconfigure Request: %f %f", config.min_height, config.max_height);
+    
+    min_height_ = config.min_height;
+    max_height_ = config.max_height;
   }
 
   void GridMap2DMapperNodelet::failureCb(const sensor_msgs::PointCloud2ConstPtr &cloud_msg,
