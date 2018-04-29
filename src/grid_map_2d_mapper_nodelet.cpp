@@ -127,7 +127,7 @@ namespace grid_map_2d_mapper
     //                                                  boost::bind(&GridMap2DMapperNodelet::disconnectCb, this));
     
     
-    map_throttled_pub_ = nh_.advertise<nav_msgs::OccupancyGrid>("/map_trottled",10);
+    map_throttled_pub_ = nh_.advertise<nav_msgs::OccupancyGrid>("/map_throttled",10);
                                                       //boost::bind(&GridMap2DMapperNodelet::connectCb, this),
                                                       //boost::bind(&GridMap2DMapperNodelet::disconnectCb, this));
 
