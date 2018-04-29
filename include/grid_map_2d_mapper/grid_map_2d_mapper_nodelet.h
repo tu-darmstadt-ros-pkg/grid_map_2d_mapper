@@ -86,7 +86,9 @@ namespace grid_map_2d_mapper
     void disconnectCb();
     
     void syscommandCallback(const std_msgs::String::ConstPtr& msg);
-
+    
+    void mapThrottledPubTimer(const ros::TimerEvent &event);
+ 
 
 
     float probToLogOdds(float prob);
@@ -103,6 +105,8 @@ namespace grid_map_2d_mapper
     typedef dynamic_reconfigure::Server<grid_map_2d_mapper::GridMap2DMapperConfig> ReconfigureServer;
     boost::shared_ptr<ReconfigureServer> dyn_rec_server_;
     boost::recursive_mutex config_mutex_;
+    
+    ros::Timer map_throttled_pub_timer_;
 
     // ROS Parameters
     unsigned int input_queue_size_;
@@ -119,6 +123,7 @@ namespace grid_map_2d_mapper
 
 
     ros::Publisher map_pub_;
+    ros::Publisher map_throttled_pub_;
     ros::Publisher grid_map_pub_;
     
     ros::Subscriber syscommand_subscriber_;
