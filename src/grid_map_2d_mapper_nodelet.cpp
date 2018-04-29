@@ -122,14 +122,21 @@ namespace grid_map_2d_mapper
 
     pub_ = nh_.advertise<sensor_msgs::LaserScan>("scan", 10, false);
 
-    map_pub_ = nh_.advertise<nav_msgs::OccupancyGrid>("/map",10,
-                                                      boost::bind(&GridMap2DMapperNodelet::connectCb, this),
-                                                      boost::bind(&GridMap2DMapperNodelet::disconnectCb, this));
+    map_pub_ = nh_.advertise<nav_msgs::OccupancyGrid>("/map",10);
+    //                                                  boost::bind(&GridMap2DMapperNodelet::connectCb, this),
+    //                                                  boost::bind(&GridMap2DMapperNodelet::disconnectCb, this));
+    
+    
+    map_throttled_pub_ = nh_.advertise<nav_msgs::OccupancyGrid>("/map_trottled",10);
+                                                      //boost::bind(&GridMap2DMapperNodelet::connectCb, this),
+                                                      //boost::bind(&GridMap2DMapperNodelet::disconnectCb, this));
 
 
     grid_map_pub_ = nh_.advertise<grid_map_msgs::GridMap>("/debug_map",10,false);
     
     syscommand_subscriber_ = nh_.subscribe("syscommand", 10, &GridMap2DMapperNodelet::syscommandCallback, this);
+    
+    sub_.subscribe(nh_, "/scan_matched_points2", input_queue_size_);
 
     grid_map_.add("occupancy_log_odds");
     grid_map_.add("occupancy_prob");
@@ -145,6 +152,8 @@ namespace grid_map_2d_mapper
     min_log_odds_ = log_odds_free_ * 20;
     max_log_odds_ = log_odds_occ_ * 20;
     ROS_INFO("log odds free: %f log odds occ: %f", log_odds_free_, log_odds_occ_);
+    
+    map_throttled_pub_timer_ = nh_.createTimer(ros::Duration(0.1), &GridMap2DMapperNodelet::mapThrottledPubTimer, this);
   }
 
   void GridMap2DMapperNodelet::connectCb()
@@ -188,6 +197,37 @@ namespace grid_map_2d_mapper
   {
     NODELET_WARN_STREAM_THROTTLE(1.0, "Can't transform pointcloud from frame " << cloud_msg->header.frame_id << " to "
         << message_filter_->getTargetFramesString());
+  }
+  
+  void GridMap2DMapperNodelet::mapThrottledPubTimer(const ros::TimerEvent &event)
+  {
+    if (map_throttled_pub_.getNumSubscribers() > 0){
+        
+      grid_map::Matrix& grid_data = grid_map_["occupancy_log_odds"];  
+        
+      grid_map::Matrix& grid_data_prob = grid_map_["occupancy_prob"];
+
+
+      //grid_map::GridMapRosConverter::toOccupancyGrid()
+      size_t total_size = grid_data.rows() * grid_data.cols();
+      for (size_t i = 0; i < total_size; ++i){
+        const float& cell = grid_data.data()[i];
+
+        if (cell != cell){
+          grid_data_prob.data()[i] = cell;
+        }else if (cell < 0.0){
+          grid_data_prob.data()[i] = 0.0;
+        }else{
+          grid_data_prob.data()[i] = 1.0;
+        }
+      }
+
+      nav_msgs::OccupancyGrid occ_grid_msg;
+
+      grid_map::GridMapRosConverter::toOccupancyGrid(grid_map_, "occupancy_prob", 0.0, 1.0, occ_grid_msg);
+      map_throttled_pub_.publish(occ_grid_msg);
+        
+    }
   }
 
   void GridMap2DMapperNodelet::cloudCb(const sensor_msgs::PointCloud2ConstPtr &cloud_msg)
