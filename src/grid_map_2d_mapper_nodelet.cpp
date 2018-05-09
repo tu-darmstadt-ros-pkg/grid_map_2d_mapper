@@ -153,7 +153,7 @@ namespace grid_map_2d_mapper
     max_log_odds_ = log_odds_occ_ * 20;
     ROS_INFO("log odds free: %f log odds occ: %f", log_odds_free_, log_odds_occ_);
     
-    map_throttled_pub_timer_ = nh_.createTimer(ros::Duration(0.1), &GridMap2DMapperNodelet::mapThrottledPubTimer, this);
+    map_throttled_pub_timer_ = nh_.createTimer(ros::Duration(1.0), &GridMap2DMapperNodelet::mapThrottledPubTimer, this);
   }
 
   void GridMap2DMapperNodelet::connectCb()
