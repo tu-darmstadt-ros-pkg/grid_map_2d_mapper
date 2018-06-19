@@ -130,6 +130,8 @@ namespace grid_map_2d_mapper
     map_throttled_pub_ = nh_.advertise<nav_msgs::OccupancyGrid>("/map_throttled",10);
                                                       //boost::bind(&GridMap2DMapperNodelet::connectCb, this),
                                                       //boost::bind(&GridMap2DMapperNodelet::disconnectCb, this));
+    
+    map_service_ = private_nh_.advertiseService("map", &GridMap2DMapperNodelet::mapServiceCallback, this);
 
 
     grid_map_pub_ = nh_.advertise<grid_map_msgs::GridMap>("/debug_map",10,false);
@@ -228,6 +230,35 @@ namespace grid_map_2d_mapper
       map_throttled_pub_.publish(occ_grid_msg);
         
     }
+  }
+  
+  bool GridMap2DMapperNodelet::mapServiceCallback(nav_msgs::GetMap::Request  &req,
+                                                  nav_msgs::GetMap::Response &res )
+  {
+    ROS_INFO("grid_mapper_2d map service called");
+    
+    grid_map::Matrix& grid_data = grid_map_["occupancy_log_odds"];  
+        
+    grid_map::Matrix& grid_data_prob = grid_map_["occupancy_prob"];
+
+
+    //grid_map::GridMapRosConverter::toOccupancyGrid()
+    size_t total_size = grid_data.rows() * grid_data.cols();
+    for (size_t i = 0; i < total_size; ++i){
+      const float& cell = grid_data.data()[i];
+
+      if (cell != cell){
+        grid_data_prob.data()[i] = cell;
+      }else if (cell < 0.0){
+        grid_data_prob.data()[i] = 0.0;
+      }else{
+        grid_data_prob.data()[i] = 1.0;
+      }
+    }
+
+    grid_map::GridMapRosConverter::toOccupancyGrid(grid_map_, "occupancy_prob", 0.0, 1.0, res.map);
+
+    return true;
   }
 
   void GridMap2DMapperNodelet::cloudCb(const sensor_msgs::PointCloud2ConstPtr &cloud_msg)

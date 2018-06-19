@@ -16,6 +16,7 @@ find_package(catkin REQUIRED COMPONENTS
   tf2_ros
   tf2_sensor_msgs
   laser_geometry
+  nav_msgs
   dynamic_reconfigure
 )
 
@@ -27,7 +28,7 @@ generate_dynamic_reconfigure_options(
 catkin_package(
   INCLUDE_DIRS include
   LIBRARIES grid_map_2d_mapper
-  CATKIN_DEPENDS roscpp message_filters nodelet sensor_msgs tf2 tf2_ros dynamic_reconfigure
+  CATKIN_DEPENDS roscpp message_filters nodelet sensor_msgs tf2 tf2_ros nav_msgs dynamic_reconfigure
 )
 
 include_directories(

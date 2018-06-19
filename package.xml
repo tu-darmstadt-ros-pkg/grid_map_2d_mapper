@@ -19,6 +19,7 @@
   <depend>tf2_ros</depend>
   <depend>tf2_sensor_msgs</depend>
   <depend>laser_geometry</depend>
+  <depend>nav_msgs</depend>
 
   <export>
     <nodelet plugin="${prefix}/nodelets.xml"/>

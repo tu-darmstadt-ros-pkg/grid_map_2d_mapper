@@ -51,6 +51,7 @@
 #include "message_filters/subscriber.h"
 #include "sensor_msgs/PointCloud2.h"
 #include <std_msgs/String.h>
+#include <nav_msgs/GetMap.h>
 
 #include <laser_geometry/laser_geometry.h>
 #include <grid_map_core/grid_map_core.hpp>
@@ -75,7 +76,11 @@ namespace grid_map_2d_mapper
   private:
     virtual void onInit();
 
+    bool mapServiceCallback(nav_msgs::GetMap::Request  &req,
+                      nav_msgs::GetMap::Response &res );
+    
     void cloudCb(const sensor_msgs::PointCloud2ConstPtr &cloud_msg);
+    
     void failureCb(const sensor_msgs::PointCloud2ConstPtr &cloud_msg,
         tf2_ros::filter_failure_reasons::FilterFailureReason reason);
     
@@ -125,6 +130,8 @@ namespace grid_map_2d_mapper
     ros::Publisher map_pub_;
     ros::Publisher map_throttled_pub_;
     ros::Publisher grid_map_pub_;
+    
+    ros::ServiceServer map_service_;
     
     ros::Subscriber syscommand_subscriber_;
 
