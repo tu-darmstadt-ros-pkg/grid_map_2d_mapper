@@ -60,6 +60,8 @@ namespace grid_map_2d_mapper
     private_nh_ = getPrivateNodeHandle();
 
     private_nh_.param<std::string>("target_frame", target_frame_, "");
+    private_nh_.param<std::string>("map_frame", map_frame_, "world");
+
     private_nh_.param<double>("transform_tolerance", tolerance_, 0.01);
     //private_nh_.param<double>("min_height", min_height_, -0.1);
     //private_nh_.param<double>("max_height", max_height_, 1.3);
@@ -144,7 +146,7 @@ namespace grid_map_2d_mapper
     grid_map_.add("occupancy_prob");
     //grid_map_.add("update_time");
     grid_map_.setGeometry(grid_map::Length(2.0, 2.0), 0.05);
-    grid_map_.setFrameId("world");
+    grid_map_.setFrameId(map_frame_);
 
 
     log_odds_free_ = probToLogOdds(0.4);
@@ -374,7 +376,7 @@ namespace grid_map_2d_mapper
     geometry_msgs::TransformStamped to_world_tf;
 
     try{
-      to_world_tf = tf2_->lookupTransform("world", cloud_reduced.header.frame_id, cloud_reduced.header.stamp, wait_duration);
+      to_world_tf = tf2_->lookupTransform(map_frame_, cloud_reduced.header.frame_id, cloud_reduced.header.stamp, wait_duration);
     }
     catch (tf2::TransformException &ex)
     {
