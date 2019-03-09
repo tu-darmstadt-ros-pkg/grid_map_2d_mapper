@@ -532,4 +532,4 @@ namespace grid_map_2d_mapper
 
 }
 
-PLUGINLIB_DECLARE_CLASS(grid_map_2d_mapper, GridMap2DMapperNodelet, grid_map_2d_mapper::GridMap2DMapperNodelet, nodelet::Nodelet);
+PLUGINLIB_EXPORT_CLASS(grid_map_2d_mapper::GridMap2DMapperNodelet, nodelet::Nodelet);
