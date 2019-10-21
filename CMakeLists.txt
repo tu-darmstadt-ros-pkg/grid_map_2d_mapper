@@ -42,3 +42,28 @@ add_dependencies(grid_map_2d_mapper ${PROJECT_NAME}_gencfg)
 
 add_executable(grid_map_2d_mapper_node src/grid_map_2d_mapper_node.cpp)
 target_link_libraries(grid_map_2d_mapper_node grid_map_2d_mapper ${catkin_LIBRARIES})
+
+# Mark cpp header files for installation
+install(DIRECTORY include/${PROJECT_NAME}/
+  DESTINATION ${CATKIN_PACKAGE_INCLUDE_DESTINATION}
+  FILES_MATCHING PATTERN "*.h"
+  PATTERN ".svn" EXCLUDE
+)
+
+# Mark executables and/or libraries for installation
+install(TARGETS ${PROJECT_NAME}_node ${PROJECT_NAME}
+  ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
+  LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
+  RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
+)
+
+# Mark other files for installation
+install(DIRECTORY 
+  launch
+  DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
+)
+
+install(FILES 
+  nodelets.xml
+  DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
+)
