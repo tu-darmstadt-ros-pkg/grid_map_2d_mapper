@@ -72,6 +72,7 @@ namespace grid_map_2d_mapper
     private_nh_.param<double>("scan_time", scan_time_, 0.0);
     private_nh_.param<double>("range_min", range_min_, 0.45);
     private_nh_.param<double>("range_max", range_max_, 15.0);
+    private_nh_.param<bool>("no_mapping", no_mapping_, false);
 
     int concurrency_level;
     private_nh_.param<int>("concurrency_level", concurrency_level, 1);
@@ -366,8 +367,9 @@ namespace grid_map_2d_mapper
     {
       pub_.publish(output);
     }
-
-    //return;
+    
+    if (no_mapping_)
+      return;
 
     sensor_msgs::PointCloud2 cloud_reduced;
     projector_.projectLaser(output, cloud_reduced);
