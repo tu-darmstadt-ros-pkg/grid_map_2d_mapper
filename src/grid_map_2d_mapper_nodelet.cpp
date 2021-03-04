@@ -72,7 +72,7 @@ namespace grid_map_2d_mapper
     private_nh_.param<double>("scan_time", scan_time_, 0.0);
     private_nh_.param<double>("range_min", range_min_, 0.45);
     private_nh_.param<double>("range_max", range_max_, 15.0);
-    private_nh_.param<bool>("no_mapping", no_mapping_, false);
+    //private_nh_.param<bool>("no_mapping", no_mapping_, false);
 
     int concurrency_level;
     private_nh_.param<int>("concurrency_level", concurrency_level, 1);
@@ -196,6 +196,7 @@ namespace grid_map_2d_mapper
     
     min_height_ = config.min_height;
     max_height_ = config.max_height;
+    no_mapping_ = !config.mapping_active;
   }
 
   void GridMap2DMapperNodelet::failureCb(const sensor_msgs::PointCloud2ConstPtr &cloud_msg,
@@ -269,39 +270,41 @@ namespace grid_map_2d_mapper
   {
 
     //build laserscan output
-    sensor_msgs::LaserScan output;
-    output.header = cloud_msg->header;
+    sensor_msgs::LaserScanPtr output;
+    output = boost::make_shared<sensor_msgs::LaserScan>();
+
+    output->header = cloud_msg->header;
     if (!target_frame_.empty())
     {
-      output.header.frame_id = target_frame_;
+      output->header.frame_id = target_frame_;
     }
 
-    output.angle_min = angle_min_;
-    output.angle_max = angle_max_;
-    output.angle_increment = angle_increment_;
-    output.time_increment = 0.0;
-    output.scan_time = scan_time_;
-    output.range_min = range_min_;
-    output.range_max = range_max_;
+    output->angle_min = angle_min_;
+    output->angle_max = angle_max_;
+    output->angle_increment = angle_increment_;
+    output->time_increment = 0.0;
+    output->scan_time = scan_time_;
+    output->range_min = range_min_;
+    output->range_max = range_max_;
 
     //determine amount of rays to create
-    uint32_t ranges_size = std::ceil((output.angle_max - output.angle_min) / output.angle_increment);
+    uint32_t ranges_size = std::ceil((output->angle_max - output->angle_min) / output->angle_increment);
 
     //determine if laserscan rays with no obstacle data will evaluate to infinity or max_range
     if (use_inf_)
     {
-      output.ranges.assign(ranges_size, std::numeric_limits<double>::infinity());
+      output->ranges.assign(ranges_size, std::numeric_limits<double>::infinity());
     }
     else
     {
-      output.ranges.assign(ranges_size, output.range_max + 1.0);
+      output->ranges.assign(ranges_size, output->range_max + 1.0);
     }
 
     sensor_msgs::PointCloud2ConstPtr cloud_out;
     sensor_msgs::PointCloud2Ptr cloud;
 
     // Transform cloud if necessary
-    if (!(output.header.frame_id == cloud_msg->header.frame_id))
+    if (!(output->header.frame_id == cloud_msg->header.frame_id))
     {
       try
       {
@@ -348,17 +351,17 @@ namespace grid_map_2d_mapper
       }
 
       double angle = atan2(*iter_y, *iter_x);
-      if (angle < output.angle_min || angle > output.angle_max)
+      if (angle < output->angle_min || angle > output->angle_max)
       {
-        NODELET_DEBUG("rejected for angle %f not in range (%f, %f)\n", angle, output.angle_min, output.angle_max);
+        NODELET_DEBUG("rejected for angle %f not in range (%f, %f)\n", angle, output->angle_min, output->angle_max);
         continue;
       }
 
       //overwrite range at laserscan ray if new range is smaller
-      int index = (angle - output.angle_min) / output.angle_increment;
-      if (range < output.ranges[index])
+      int index = (angle - output->angle_min) / output->angle_increment;
+      if (range < output->ranges[index])
       {
-        output.ranges[index] = range;
+        output->ranges[index] = range;
       }
 
     }
@@ -372,7 +375,7 @@ namespace grid_map_2d_mapper
       return;
 
     sensor_msgs::PointCloud2 cloud_reduced;
-    projector_.projectLaser(output, cloud_reduced);
+    projector_.projectLaser(*output, cloud_reduced);
 
 
     ros::Duration wait_duration(1.0);
