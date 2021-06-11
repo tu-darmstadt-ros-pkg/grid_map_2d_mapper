@@ -48,6 +48,8 @@
 #include <grid_map_ros/grid_map_ros.hpp>
 #include <nav_msgs/OccupancyGrid.h>
 #include <grid_map_msgs/GridMap.h>
+#include <pcl_ros/transforms.h>
+#include <pcl_conversions/pcl_conversions.h>
 
 namespace grid_map_2d_mapper
 {
@@ -323,6 +325,7 @@ namespace grid_map_2d_mapper
     {
       cloud_out = cloud_msg;
     }
+    pcl::PointCloud<pcl::PointXYZ> cloud_filtered;
 
     // Iterate through pointcloud
     for (sensor_msgs::PointCloud2ConstIterator<float>
@@ -365,6 +368,10 @@ namespace grid_map_2d_mapper
         output->ranges[index] = range;
       }
 
+      if(!downsample_cloud_) {
+        cloud_filtered.emplace_back(*iter_x, *iter_y, *iter_z);
+      }
+
     }
 
     if (pub_.getNumSubscribers() > 0)
@@ -376,8 +383,13 @@ namespace grid_map_2d_mapper
       return;
 
     sensor_msgs::PointCloud2 cloud_reduced;
-    projector_.projectLaser(*output, cloud_reduced);
-
+    if(downsample_cloud_) {
+      projector_.projectLaser(*output, cloud_reduced);
+    }
+    else {
+      pcl::toROSMsg(cloud_filtered, cloud_reduced);
+      cloud_reduced.header = output->header;
+    }
 
     ros::Duration wait_duration(1.0);
     geometry_msgs::TransformStamped to_world_tf;

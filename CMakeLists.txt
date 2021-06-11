@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 2.8.3)
 project(grid_map_2d_mapper)
 
-set(CMAKE_CXX_FLAGS "-std=c++11 ${CMAKE_CXX_FLAGS}")
+set(CMAKE_CXX_FLAGS "-std=c++14 ${CMAKE_CXX_FLAGS}")
 
 ## Find catkin macros and libraries
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
@@ -18,7 +18,12 @@ find_package(catkin REQUIRED COMPONENTS
   laser_geometry
   nav_msgs
   dynamic_reconfigure
+  pcl_conversions
+  pcl_ros
 )
+
+find_package(PCL REQUIRED
+        )
 
 generate_dynamic_reconfigure_options(
   cfg/GridMap2DMapper.cfg
@@ -34,7 +39,10 @@ catkin_package(
 include_directories(
   include
   ${catkin_INCLUDE_DIRS}
+  ${PCL_INCLUDE_DIRS}
 )
+
+add_definitions(${PCL_DEFINITIONS})
 
 add_library(grid_map_2d_mapper src/grid_map_2d_mapper_nodelet.cpp)
 target_link_libraries(grid_map_2d_mapper ${catkin_LIBRARIES})
