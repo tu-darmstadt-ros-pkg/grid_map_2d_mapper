@@ -69,6 +69,7 @@ namespace grid_map_2d_mapper
     private_nh_.param<double>("angle_min", angle_min_, -M_PI / 1.0);
     private_nh_.param<double>("angle_max", angle_max_, M_PI / 1.0);
     private_nh_.param<double>("angle_increment", angle_increment_, M_PI / 180.0);
+    private_nh_.param<bool>("downsample_cloud", downsample_cloud_, false);
     private_nh_.param<double>("scan_time", scan_time_, 0.0);
     private_nh_.param<double>("range_min", range_min_, 0.45);
     private_nh_.param<double>("range_max", range_max_, 15.0);
