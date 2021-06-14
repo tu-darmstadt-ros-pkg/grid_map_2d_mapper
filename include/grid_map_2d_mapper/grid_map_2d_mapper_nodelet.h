@@ -131,6 +131,9 @@ namespace grid_map_2d_mapper
     float max_log_odds_;
 
 
+    double probability_free_;
+    double probability_occ_;
+
     ros::Publisher map_pub_;
     ros::Publisher map_throttled_pub_;
     ros::Publisher grid_map_pub_;

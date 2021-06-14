@@ -71,10 +71,12 @@ namespace grid_map_2d_mapper
     private_nh_.param<double>("angle_min", angle_min_, -M_PI / 1.0);
     private_nh_.param<double>("angle_max", angle_max_, M_PI / 1.0);
     private_nh_.param<double>("angle_increment", angle_increment_, M_PI / 180.0);
-    private_nh_.param<bool>("downsample_cloud", downsample_cloud_, false);
+    private_nh_.param<bool>("downsample_cloud", downsample_cloud_, true);
     private_nh_.param<double>("scan_time", scan_time_, 0.0);
     private_nh_.param<double>("range_min", range_min_, 0.45);
     private_nh_.param<double>("range_max", range_max_, 15.0);
+    private_nh_.param<double>("probability_occupied", probability_occ_, 0.75);
+    private_nh_.param<double>("probability_free", probability_free_, 0.4);
     //private_nh_.param<bool>("no_mapping", no_mapping_, false);
 
     int concurrency_level;
@@ -153,8 +155,8 @@ namespace grid_map_2d_mapper
     grid_map_.setFrameId(map_frame_);
 
 
-    log_odds_free_ = probToLogOdds(0.4);
-    log_odds_occ_  = probToLogOdds(0.75);
+    log_odds_free_ = probToLogOdds(probability_free_);
+    log_odds_occ_  = probToLogOdds(probability_occ_);
 
 
     min_log_odds_ = log_odds_free_ * 20;
