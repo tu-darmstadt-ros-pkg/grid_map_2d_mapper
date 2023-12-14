@@ -82,7 +82,7 @@ namespace grid_map_2d_mapper
     int concurrency_level;
     private_nh_.param<int>("concurrency_level", concurrency_level, 1);
     private_nh_.param<bool>("use_inf", use_inf_, true);
-    
+
     dyn_rec_server_.reset(new ReconfigureServer(config_mutex_, private_nh_));
     dyn_rec_server_->setCallback(boost::bind(&GridMap2DMapperNodelet::reconfigureCallback, this, _1, _2));
 
@@ -133,19 +133,19 @@ namespace grid_map_2d_mapper
     map_pub_ = nh_.advertise<nav_msgs::OccupancyGrid>("/map",10);
     //                                                  boost::bind(&GridMap2DMapperNodelet::connectCb, this),
     //                                                  boost::bind(&GridMap2DMapperNodelet::disconnectCb, this));
-    
-    
+
+
     map_throttled_pub_ = nh_.advertise<nav_msgs::OccupancyGrid>("/map_throttled",10);
                                                       //boost::bind(&GridMap2DMapperNodelet::connectCb, this),
                                                       //boost::bind(&GridMap2DMapperNodelet::disconnectCb, this));
-    
+
     map_service_ = private_nh_.advertiseService("map", &GridMap2DMapperNodelet::mapServiceCallback, this);
 
 
     grid_map_pub_ = nh_.advertise<grid_map_msgs::GridMap>("/debug_map",10,false);
-    
+
     syscommand_subscriber_ = nh_.subscribe("syscommand", 10, &GridMap2DMapperNodelet::syscommandCallback, this);
-    
+
     sub_.subscribe(nh_, "/scan_matched_points2", input_queue_size_);
 
     grid_map_.add("occupancy_log_odds");
@@ -162,7 +162,7 @@ namespace grid_map_2d_mapper
     min_log_odds_ = log_odds_free_ * 20;
     max_log_odds_ = log_odds_occ_ * 20;
     ROS_INFO("log odds free: %f log odds occ: %f", log_odds_free_, log_odds_occ_);
-    
+
     double map_publish_period = private_nh_.param("map_publish_period", 1.0);
     map_throttled_pub_timer_ = nh_.createTimer(ros::Duration(map_publish_period), &GridMap2DMapperNodelet::mapThrottledPubTimer, this);
   }
@@ -186,7 +186,7 @@ namespace grid_map_2d_mapper
       sub_.unsubscribe();
     }
   }
-  
+
   void GridMap2DMapperNodelet::syscommandCallback(const std_msgs::String::ConstPtr& msg)
   {
     if(msg->data == "reset" || msg->data == "reset_2d_map"){
@@ -195,10 +195,10 @@ namespace grid_map_2d_mapper
       ROS_INFO("Cleared grid_map_2d_mapper map!");
     }
   }
-  
+
   void GridMap2DMapperNodelet::reconfigureCallback(grid_map_2d_mapper::GridMap2DMapperConfig &config, uint32_t level) {
     ROS_INFO("Reconfigure Request: %f %f", config.min_height, config.max_height);
-    
+
     min_height_ = config.min_height;
     max_height_ = config.max_height;
     no_mapping_ = !config.mapping_active;
@@ -210,13 +210,13 @@ namespace grid_map_2d_mapper
     NODELET_WARN_STREAM_THROTTLE(1.0, "Can't transform pointcloud from frame " << cloud_msg->header.frame_id << " to "
         << message_filter_->getTargetFramesString());
   }
-  
+
   void GridMap2DMapperNodelet::mapThrottledPubTimer(const ros::TimerEvent &event)
   {
     if (map_throttled_pub_.getNumSubscribers() > 0){
-        
-      grid_map::Matrix& grid_data = grid_map_["occupancy_log_odds"];  
-        
+
+      grid_map::Matrix& grid_data = grid_map_["occupancy_log_odds"];
+
       grid_map::Matrix& grid_data_prob = grid_map_["occupancy_prob"];
 
 
@@ -238,17 +238,17 @@ namespace grid_map_2d_mapper
 
       grid_map::GridMapRosConverter::toOccupancyGrid(grid_map_, "occupancy_prob", 0.0, 1.0, occ_grid_msg);
       map_throttled_pub_.publish(occ_grid_msg);
-        
+
     }
   }
-  
+
   bool GridMap2DMapperNodelet::mapServiceCallback(nav_msgs::GetMap::Request  &req,
                                                   nav_msgs::GetMap::Response &res )
   {
     ROS_INFO("grid_mapper_2d map service called");
-    
-    grid_map::Matrix& grid_data = grid_map_["occupancy_log_odds"];  
-        
+
+    grid_map::Matrix& grid_data = grid_map_["occupancy_log_odds"];
+
     grid_map::Matrix& grid_data_prob = grid_map_["occupancy_prob"];
 
 
@@ -273,166 +273,128 @@ namespace grid_map_2d_mapper
 
   void GridMap2DMapperNodelet::cloudCb(const sensor_msgs::PointCloud2ConstPtr &cloud_msg)
   {
+    // Initialize a new LaserScan message
+    // A LaserScan message contains an array of ranges. Each range corresponds to a specific angle.
+    sensor_msgs::LaserScanPtr laser_scan_out = boost::make_shared<sensor_msgs::LaserScan>();
 
-    //build laserscan output
-    sensor_msgs::LaserScanPtr output;
-    output = boost::make_shared<sensor_msgs::LaserScan>();
-
-    output->header = cloud_msg->header;
-    if (!target_frame_.empty())
-    {
-      output->header.frame_id = target_frame_;
+    // Set basic properties of the LaserScan message
+    laser_scan_out->header = cloud_msg->header;
+    if (!target_frame_.empty()) {
+      laser_scan_out->header.frame_id = target_frame_;
     }
+    laser_scan_out->angle_min = angle_min_;
+    laser_scan_out->angle_max = angle_max_;
+    laser_scan_out->angle_increment = angle_increment_;
+    laser_scan_out->time_increment = 0.0;
+    laser_scan_out->scan_time = scan_time_;
+    laser_scan_out->range_min = range_min_;
+    laser_scan_out->range_max = range_max_;
 
-    output->angle_min = angle_min_;
-    output->angle_max = angle_max_;
-    output->angle_increment = angle_increment_;
-    output->time_increment = 0.0;
-    output->scan_time = scan_time_;
-    output->range_min = range_min_;
-    output->range_max = range_max_;
+    // Calculate the number of rays in the LaserScan
+    uint32_t ranges_size = std::ceil((laser_scan_out->angle_max - laser_scan_out->angle_min) / laser_scan_out->angle_increment);
+    laser_scan_out->ranges.assign(ranges_size, use_inf_ ? std::numeric_limits<double>::infinity() : laser_scan_out->range_max + 1.0);
 
-    //determine amount of rays to create
-    uint32_t ranges_size = std::ceil((output->angle_max - output->angle_min) / output->angle_increment);
-
-    //determine if laserscan rays with no obstacle data will evaluate to infinity or max_range
-    if (use_inf_)
-    {
-      output->ranges.assign(ranges_size, std::numeric_limits<double>::infinity());
-    }
-    else
-    {
-      output->ranges.assign(ranges_size, output->range_max + 1.0);
-    }
-
+    // Transform the point cloud if necessary
     sensor_msgs::PointCloud2ConstPtr cloud_out;
-    sensor_msgs::PointCloud2Ptr cloud;
-
-    // Transform cloud if necessary
-    if (!(output->header.frame_id == cloud_msg->header.frame_id))
-    {
-      try
-      {
-        cloud.reset(new sensor_msgs::PointCloud2);
+    if (!(laser_scan_out->header.frame_id == cloud_msg->header.frame_id)) {
+      try {
+        sensor_msgs::PointCloud2Ptr cloud(new sensor_msgs::PointCloud2);
         tf2_->transform(*cloud_msg, *cloud, target_frame_, ros::Duration(tolerance_));
         cloud_out = cloud;
-      }
-      catch (tf2::TransformException ex)
-      {
+      } catch (tf2::TransformException &ex) {
         NODELET_ERROR_STREAM("Transform failure: " << ex.what());
         return;
       }
-    }
-    else
-    {
+    } else {
       cloud_out = cloud_msg;
     }
+
     pcl::PointCloud<pcl::PointXYZ> cloud_filtered;
+    // After the following loop:
+    // cloud_filtered should only contain wall points, but no floor or ceiling points
+    // laser_scan_out should only contain wall points, projected onto a plane
 
-    // Iterate through pointcloud
-    for (sensor_msgs::PointCloud2ConstIterator<float>
-              iter_x(*cloud_out, "x"), iter_y(*cloud_out, "y"), iter_z(*cloud_out, "z");
-              iter_x != iter_x.end();
-              ++iter_x, ++iter_y, ++iter_z)
-    {
-
-      if (std::isnan(*iter_x) || std::isnan(*iter_y) || std::isnan(*iter_z))
-      {
-        NODELET_DEBUG("rejected for nan in point(%f, %f, %f)\n", *iter_x, *iter_y, *iter_z);
+    // Process each point in the cloud and filter out invalid points.
+    // Project the point cloud onto a plane and generate laserscan data
+    for (sensor_msgs::PointCloud2ConstIterator<float> iter_x(*cloud_out, "x"), iter_y(*cloud_out, "y"), iter_z(*cloud_out, "z");
+         iter_x != iter_x.end(); ++iter_x, ++iter_y, ++iter_z) {
+      // Filter out NaN points
+      if (std::isnan(*iter_x) || std::isnan(*iter_y) || std::isnan(*iter_z)) {
+        NODELET_DEBUG("Rejected NaN point(%f, %f, %f)", *iter_x, *iter_y, *iter_z);
         continue;
       }
-
-      if (*iter_z > max_height_ || *iter_z < min_height_)
-      {
+      // Filter points outside of the height bounds
+      if (*iter_z > max_height_ || *iter_z < min_height_) {
         NODELET_DEBUG("rejected for height %f not in range (%f, %f)\n", *iter_z, min_height_, max_height_);
         continue;
       }
-
+      // Filter points based on range
       double range = hypot(*iter_x, *iter_y);
-      if (range < range_min_)
-      {
+      if (range < range_min_) {
         NODELET_DEBUG("rejected for range %f below minimum value %f. Point: (%f, %f, %f)", range, range_min_, *iter_x, *iter_y,
                       *iter_z);
         continue;
       }
-
+      // Filter points based on angle
       double angle = atan2(*iter_y, *iter_x);
-      if (angle < output->angle_min || angle > output->angle_max)
-      {
-        NODELET_DEBUG("rejected for angle %f not in range (%f, %f)\n", angle, output->angle_min, output->angle_max);
+      if (angle < laser_scan_out->angle_min || angle > laser_scan_out->angle_max) {
+        NODELET_DEBUG("rejected for angle %f not in range (%f, %f)\n", angle, laser_scan_out->angle_min, laser_scan_out->angle_max);
         continue;
       }
 
-      //overwrite range at laserscan ray if new range is smaller
-      int index = (angle - output->angle_min) / output->angle_increment;
-      if (range < output->ranges[index])
-      {
-        output->ranges[index] = range;
+      // Update the corresponding range in the LaserScan message if the new range is smaller than the old one
+      int index = (angle - laser_scan_out->angle_min) / laser_scan_out->angle_increment;
+      if (range < laser_scan_out->ranges[index]) {
+        laser_scan_out->ranges[index] = range;
       }
 
+      // Optionally accumulate all points for downsampling
       if(!downsample_cloud_) {
         cloud_filtered.emplace_back(*iter_x, *iter_y, *iter_z);
       }
-
     }
 
-    if (pub_.getNumSubscribers() > 0)
-    {
-      pub_.publish(output);
-    }
-    
+    pub_.publish(laser_scan_out);
+
     if (no_mapping_)
       return;
 
     sensor_msgs::PointCloud2 cloud_reduced;
     if(downsample_cloud_) {
-      projector_.projectLaser(*output, cloud_reduced);
+      projector_.projectLaser(*laser_scan_out, cloud_reduced);
     }
     else {
       pcl::toROSMsg(cloud_filtered, cloud_reduced);
-      cloud_reduced.header = output->header;
+      cloud_reduced.header = laser_scan_out->header;
     }
+    // if downsample_cloud_ is false, cloud_reduced contains all points that are within height,
+    // range and angle bounds and is 3D
+    // if it is true, cloud_reduced only contains the points that were projected into the laser scan
+    // and is 2D
 
     ros::Duration wait_duration(1.0);
     geometry_msgs::TransformStamped to_world_tf;
-
-    try{
+    try {
       to_world_tf = tf2_->lookupTransform(map_frame_, cloud_reduced.header.frame_id, cloud_reduced.header.stamp, wait_duration);
-    }
-    catch (tf2::TransformException &ex)
-    {
+    } catch (tf2::TransformException &ex) {
       ROS_WARN("Cannot lookup transform, skipping map update!: %s",ex.what());
       return;
     }
 
-    Eigen::Affine3d to_world_eigen = tf2::transformToEigen(to_world_tf);
-
-    //geometry_msgs::PointStamped sensor_center_world;
-    //sensor_center_world = to_world_tf_.
-
-    Eigen::Vector3d sensor_frame_world_pos (to_world_eigen.translation());
-
-    //return;
-
+    Eigen::Affine3d cloud_to_world_eigen = tf2::transformToEigen(to_world_tf);
+    Eigen::Vector3d sensor_frame_world_pos (cloud_to_world_eigen.translation());
     grid_map::Matrix& grid_data = grid_map_["occupancy_log_odds"];
-
-
-
-    //grid_map::Index start;
-    //grid_map_.getIndex(grid_map::Position(sensor_frame_world_pos[0],sensor_frame_world_pos[1]), start);
     grid_map::Position sensor_position (sensor_frame_world_pos.x(), sensor_frame_world_pos.y());
 
     end_points_.clear();
-
     Eigen::Vector2d min_coords(std::numeric_limits<double>::max(),    std::numeric_limits<double>::max());
     Eigen::Vector2d max_coords(std::numeric_limits<double>::lowest(), std::numeric_limits<double>::lowest());
 
+    // Find max and min coords of all points, to determine map size
     for (sensor_msgs::PointCloud2ConstIterator<float>
               iter_x(cloud_reduced, "x"), iter_y(cloud_reduced, "y"), iter_z(cloud_reduced, "z");
-              iter_x != iter_x.end();
-              ++iter_x, ++iter_y, ++iter_z)
-    {
-      Eigen::Vector3d end_point (to_world_eigen * Eigen::Vector3d(*iter_x, *iter_y, *iter_z));
+              iter_x != iter_x.end(); ++iter_x, ++iter_y, ++iter_z) {
+      Eigen::Vector3d end_point (cloud_to_world_eigen * Eigen::Vector3d(*iter_x, *iter_y, *iter_z));
 
       if (max_coords.x() < end_point.x())
           max_coords.x() = end_point.x();
@@ -444,109 +406,101 @@ namespace grid_map_2d_mapper
           min_coords.y() = end_point.y();
 
       end_points_.push_back(end_point);
-
     }
-
     Eigen::Vector2d center  ( (min_coords + max_coords) * 0.5 );
     Eigen::Vector2d lengths (max_coords - min_coords);
-    //lengths.cwise() += 0.5;
-
     grid_map::GridMap update_area;
     update_area.setGeometry(lengths.array() + 0.5, grid_map_.getResolution(), center);
-
-    //update_area.add("occupancy", 0);
-    //grid_map_.addDataFrom(update_area, true, false, true);
-
     grid_map_.extendToInclude(update_area);
-    //grid_map_.addDataFrom(update_area, true, false, true);
-
-    size_t end_points_size = end_points_.size();
 
     std::vector<grid_map::Index> curr_ray;
+    // fill gridmap with data - white for free, black for occupied
+    for (const Eigen::Vector3d& end_point : end_points_) {
+      grid_map::Position end_point_position(end_point.x(), end_point.y());
+      curr_ray.clear();
 
-    for (size_t i = 0; i < end_points_size; ++i){
+      for (grid_map::LineIterator iterator(grid_map_, sensor_position, end_point_position); !iterator.isPastEnd(); ++iterator) {
+        curr_ray.emplace_back(*iterator);
+      }
 
-        const Eigen::Vector3d& end_point (end_points_[i]);
-        grid_map::Position end_point_position(end_point.x(), end_point.y());
-
-        curr_ray.clear();
-
-        for (grid_map::LineIterator iterator(grid_map_, sensor_position, end_point_position);
-            !iterator.isPastEnd(); ++iterator) {
-
-          curr_ray.push_back(grid_map::Index(*iterator));
-          //const grid_map::Index index(*iterator);
-          //grid_data(index(0), index(1)) = 0.5;
-
+      // Update log odds for each cell along the ray
+      for (size_t i = 0; i < curr_ray.size() - 1; ++i) {
+        const grid_map::Index& index = curr_ray[i];
+        if (std::isnan(grid_data(index(0), index(1)))) {
+          grid_data(index(0), index(1)) = 0.0;
         }
+        if (min_log_odds_ < grid_data(index(0), index(1))) {
+          grid_data(index(0), index(1)) += log_odds_free_;
+        }
+      }
 
-        size_t curr_ray_size = curr_ray.size();
+      // Update the log odds for the end cell of the ray
+      const grid_map::Index& end_index = curr_ray.back();
+      if (std::isnan(grid_data(end_index(0), end_index(1)))) {
+        grid_data(end_index(0), end_index(1)) = 0.0;
+      }
+      if (max_log_odds_ > grid_data(end_index(0), end_index(1))) {
+        grid_data(end_index(0), end_index(1)) += log_odds_occ_;
+      }
+    }
+    ROS_INFO_STREAM("FCK ODDSSSSS: " << log_odds_free_ << " " << log_odds_occ_ << " " << min_log_odds_ << " " << max_log_odds_);
+    // Make new method out of this
+    double min_floor_height = -0.1;
+    double max_floor_height = 0.1;
 
-        if (curr_ray_size > 2){
-          size_t r = 0;
-          for (; r < curr_ray_size-1; ++r){
-              const grid_map::Index& index = curr_ray[r];
+    for (sensor_msgs::PointCloud2ConstIterator<float> iter_x(*cloud_out, "x"), iter_y(*cloud_out, "y"), iter_z(*cloud_out, "z");
+         iter_x != iter_x.end(); ++iter_x, ++iter_y, ++iter_z) {
 
-              //float& cell
+      // Filter out NaN points
+      if (std::isnan(*iter_x) || std::isnan(*iter_y) || std::isnan(*iter_z)) {
+        NODELET_DEBUG("Rejected NaN point(%f, %f, %f)", *iter_x, *iter_y, *iter_z);
+        continue;
+      }
 
-              if (grid_data(index(0), index(1)) != grid_data(index(0), index(1)))
-                grid_data(index(0), index(1)) = 0.0;
+      Eigen::Vector3d floor_point (cloud_to_world_eigen * Eigen::Vector3d(*iter_x, *iter_y, *iter_z));
+      grid_map::Position floor_point_position(floor_point.x(), floor_point.y());
 
-
-              if (min_log_odds_ < grid_data(index(0), index(1)))
-                grid_data(index(0), index(1)) += log_odds_free_;
-
-
+      // Filter points outside of the height bounds
+      if (floor_point.z() > min_floor_height && floor_point.z() < max_floor_height) {
+        grid_map::Index index;
+        if (grid_map_.getIndex(floor_point_position, index)) {
+          if (std::isnan(grid_data(index(0), index(1)))) {
+            grid_data(index(0), index(1)) = min_log_odds_;
           }
-
-          const grid_map::Index& index = curr_ray[r];
-
-          if (grid_data(index(0), index(1)) != grid_data(index(0), index(1)))
-            grid_data(index(0), index(1)) = 0.0;
-
-          if (max_log_odds_ > grid_data(index(0), index(1)))
-            grid_data(index(0), index(1)) += log_odds_occ_;
         }
-
+      }
     }
 
     if (grid_map_pub_.getNumSubscribers() > 0){
-
       grid_map_msgs::GridMap grid_map_msg;
-
       grid_map::GridMapRosConverter::toMessage(grid_map_, grid_map_msg);
       grid_map_pub_.publish(grid_map_msg);
     }
 
+    // Turn map into binary map and publish
     if (map_pub_.getNumSubscribers() > 0){
-
       grid_map::Matrix& grid_data_prob = grid_map_["occupancy_prob"];
-
 
       //grid_map::GridMapRosConverter::toOccupancyGrid()
       size_t total_size = grid_data.rows() * grid_data.cols();
-      for (size_t i = 0; i < total_size; ++i){
+      for (size_t i = 0; i < total_size; ++i) {
         const float& cell = grid_data.data()[i];
-
-        if (cell != cell){
+        if (cell != cell) {
           grid_data_prob.data()[i] = cell;
-        }else if (cell < 0.0){
+        } else if (cell < 0.0) {
           grid_data_prob.data()[i] = 0.0;
-        }else{
+        } else {
           grid_data_prob.data()[i] = 1.0;
         }
       }
 
       nav_msgs::OccupancyGrid occ_grid_msg;
-
       grid_map::GridMapRosConverter::toOccupancyGrid(grid_map_, "occupancy_prob", 0.0, 1.0, occ_grid_msg);
       map_pub_.publish(occ_grid_msg);
     }
-
   }
 
-  float GridMap2DMapperNodelet::probToLogOdds(float prob)
-    {
+  float GridMap2DMapperNodelet::probToLogOdds(float prob) {
       float odds = prob / (1.0f - prob);
       return log(odds);
     }
