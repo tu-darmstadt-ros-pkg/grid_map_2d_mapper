@@ -456,16 +456,33 @@ namespace grid_map_2d_mapper
         NODELET_DEBUG("Rejected NaN point(%f, %f, %f)", *iter_x, *iter_y, *iter_z);
         continue;
       }
+      // Filter points based on range
+      double range = hypot(*iter_x, *iter_y);
+      if (range < range_min_) {
+        NODELET_DEBUG("rejected for range %f below minimum value %f. Point: (%f, %f, %f)", range, range_min_, *iter_x, *iter_y,
+                      *iter_z);
+        continue;
+      }
+      // Filter points based on angle
+      double angle = atan2(*iter_y, *iter_x);
+      if (angle < laser_scan_out->angle_min || angle > laser_scan_out->angle_max) {
+        NODELET_DEBUG("rejected for angle %f not in range (%f, %f)\n", angle, laser_scan_out->angle_min, laser_scan_out->angle_max);
+        continue;
+      }
 
       Eigen::Vector3d floor_point (cloud_to_world_eigen * Eigen::Vector3d(*iter_x, *iter_y, *iter_z));
       grid_map::Position floor_point_position(floor_point.x(), floor_point.y());
 
-      // Filter points outside of the height bounds
-      if (floor_point.z() > min_floor_height && floor_point.z() < max_floor_height) {
-        grid_map::Index index;
-        if (grid_map_.getIndex(floor_point_position, index)) {
-          if (std::isnan(grid_data(index(0), index(1)))) {
-            grid_data(index(0), index(1)) = min_log_odds_;
+      // Update the corresponding range in the LaserScan message if the new range is smaller than the old one
+      int laser_index = (angle - laser_scan_out->angle_min) / laser_scan_out->angle_increment;
+      if (laser_scan_out->ranges[laser_index] == (use_inf_ ? std::numeric_limits<double>::infinity() : laser_scan_out->range_max + 1.0)) {
+        // Filter points outside of the height bounds
+        if (floor_point.z() > min_floor_height && floor_point.z() < max_floor_height) {
+          grid_map::Index index;
+          if (grid_map_.getIndex(floor_point_position, index)) {
+            if (std::isnan(grid_data(index(0), index(1)))) {
+              grid_data(index(0), index(1)) = log_odds_free_;
+            }
           }
         }
       }
