@@ -58,96 +58,134 @@
 
 #include <dynamic_reconfigure/server.h>
 #include <grid_map_2d_mapper/GridMap2DMapperConfig.h>
+#include <pcl_conversions/pcl_conversions.h>
 
+namespace grid_map_2d_mapper {
+    typedef tf2_ros::MessageFilter<sensor_msgs::PointCloud2> MessageFilter;
 
-namespace grid_map_2d_mapper
-{
-  typedef tf2_ros::MessageFilter<sensor_msgs::PointCloud2> MessageFilter;
 /**
 * Class to process incoming pointclouds into laserscans. Some initial code was pulled from the defunct turtlebot
 * grid_map_2d_mapper implementation.
 */
-  class GridMap2DMapperNodelet : public nodelet::Nodelet
-  {
+    class GridMap2DMapperNodelet : public nodelet::Nodelet {
+    public:
+        GridMap2DMapperNodelet();
 
-  public:
-    GridMap2DMapperNodelet();
+    private:
+        virtual void onInit();
 
-  private:
-    virtual void onInit();
-
-    bool mapServiceCallback(nav_msgs::GetMap::Request  &req,
-                      nav_msgs::GetMap::Response &res );
-    
-    void cloudCb(const sensor_msgs::PointCloud2ConstPtr &cloud_msg);
-    
-    void failureCb(const sensor_msgs::PointCloud2ConstPtr &cloud_msg,
-        tf2_ros::filter_failure_reasons::FilterFailureReason reason);
-    
-    void reconfigureCallback(grid_map_2d_mapper::GridMap2DMapperConfig &config, uint32_t level);
-
-    void connectCb();
-
-    void disconnectCb();
-    
-    void syscommandCallback(const std_msgs::String::ConstPtr& msg);
-    
-    void mapThrottledPubTimer(const ros::TimerEvent &event);
- 
+        bool mapServiceCallback(nav_msgs::GetMap::Request &req, nav_msgs::GetMap::Response &res);
 
 
-    float probToLogOdds(float prob);
+        void failureCb(const sensor_msgs::PointCloud2ConstPtr &cloud_msg,
+                       tf2_ros::filter_failure_reasons::FilterFailureReason reason);
 
-    ros::NodeHandle nh_, private_nh_;
-    ros::Publisher pub_;
-    boost::mutex connect_mutex_;
+        void reconfigureCallback(grid_map_2d_mapper::GridMap2DMapperConfig &config, uint32_t level);
 
-    boost::shared_ptr<tf2_ros::Buffer> tf2_;
-    boost::shared_ptr<tf2_ros::TransformListener> tf2_listener_;
-    message_filters::Subscriber<sensor_msgs::PointCloud2> sub_;
-    boost::shared_ptr<MessageFilter> message_filter_;
-    
-    typedef dynamic_reconfigure::Server<grid_map_2d_mapper::GridMap2DMapperConfig> ReconfigureServer;
-    boost::shared_ptr<ReconfigureServer> dyn_rec_server_;
-    boost::recursive_mutex config_mutex_;
-    
-    ros::Timer map_throttled_pub_timer_;
+        void connectCb();
 
-    // ROS Parameters
-    unsigned int input_queue_size_;
-    std::string target_frame_;
-    std::string map_frame_;
+        void disconnectCb();
 
-    double tolerance_;
-    double min_height_, max_height_, angle_min_, angle_max_, angle_increment_, scan_time_, range_min_, range_max_, min_floor_height_, max_floor_height_;
-    bool use_inf_;
-    bool use_floor_filter_;
-    bool no_mapping_;
-    bool downsample_cloud_;
+        void syscommandCallback(const std_msgs::String::ConstPtr &msg);
 
-    float log_odds_free_;
-    float log_odds_occ_;
+        void mapThrottledPubTimer(const ros::TimerEvent &event);
 
-    float min_log_odds_;
-    float max_log_odds_;
+        void cloudCb(const sensor_msgs::PointCloud2ConstPtr &cloud_msg);
+
+        /**
+         * @brief
+         * Initialize the laserscan message with the correct header information and settings
+         * @param laser_scan_out  The output laserscan message
+         * @param cloud_msg  The input point cloud message
+         */
+        void initializeLaserScan(sensor_msgs::LaserScanPtr& laser_scan_out, const sensor_msgs::PointCloud2ConstPtr& cloud_msg);
+
+        /**
+         * @brief
+         * Filter cloud_in to remove points based on height and angle and range.
+         * cloud_filtered will only contain wall points, but no floor or ceiling points
+         * laser_scan_out will only contain wall points, projected onto a plane
+         * @param cloud_in  The input point cloud to filter and project
+         * @param cloud_filtered  The output point cloud containing only wall points (no floor or ceiling points)
+         * @param laser_scan_out  The output laserscan data containing only wall points (no floor or ceiling points)
+         */
+        void filterPointCloudForWalls(const sensor_msgs::PointCloud2ConstPtr& cloud_in,
+                                      pcl::PointCloud<pcl::PointXYZ>& cloud_filtered,
+                                      sensor_msgs::LaserScanPtr& laser_scan_out) const;
+
+        /**
+         * @brief
+         * Convert the GridMap to an OccupancyGrid message. Values lower than 0.0 will be mapped to 0.0 (free space),
+         * higher values will be mapped to 1.0 (occupied space)
+         * @param grid_data  The GridMap data
+         * @return nav_msgs::OccupancyGrid  The OccupancyGrid message
+         */
+        nav_msgs::OccupancyGrid convertGridDataToOccupancyGrid(const grid_map::Matrix &grid_data);
+
+        /**
+         * @brief
+         * Calculate the log odds value for a given probability value
+         * @param prob  The probability value
+         * @return float  The log odds value
+         */
+        float probToLogOdds(float prob);
+
+        ros::NodeHandle nh_, private_nh_;
+        ros::Publisher pub_;
+        boost::mutex connect_mutex_;
+
+        boost::shared_ptr<tf2_ros::Buffer> tf2_;
+        boost::shared_ptr<tf2_ros::TransformListener> tf2_listener_;
+        message_filters::Subscriber<sensor_msgs::PointCloud2> sub_;
+        boost::shared_ptr<MessageFilter> message_filter_;
+
+        typedef dynamic_reconfigure::Server<grid_map_2d_mapper::GridMap2DMapperConfig> ReconfigureServer;
+        boost::shared_ptr<ReconfigureServer> dyn_rec_server_;
+        boost::recursive_mutex config_mutex_;
+
+        ros::Timer map_throttled_pub_timer_;
+
+        // ROS Parameters
+        unsigned int input_queue_size_;
+        std::string target_frame_;
+        std::string map_frame_;
 
 
-    double probability_free_;
-    double probability_occ_;
+        double tolerance_;
+        double min_height_, max_height_, angle_min_, angle_max_, angle_increment_, scan_time_, range_min_, range_max_;
+        bool use_inf_;
 
-    ros::Publisher map_pub_;
-    ros::Publisher map_throttled_pub_;
-    ros::Publisher grid_map_pub_;
-    
-    ros::ServiceServer map_service_;
-    
-    ros::Subscriber syscommand_subscriber_;
+        bool no_mapping_;
+        bool downsample_cloud_;
 
-    laser_geometry::LaserProjection projector_;
-    grid_map::GridMap grid_map_;
+        // Floor filtering Parameters
+        double min_floor_height_, max_floor_height_;
+        bool use_floor_filter_;
+        std::string robot_base_frame_;
 
-    std::vector<Eigen::Vector3d> end_points_;
-  };
+        float log_odds_free_;
+        float log_odds_occ_;
+
+        float min_log_odds_;
+        float max_log_odds_;
+
+
+        double probability_free_;
+        double probability_occ_;
+
+        ros::Publisher map_pub_;
+        ros::Publisher map_throttled_pub_;
+        ros::Publisher grid_map_pub_;
+
+        ros::ServiceServer map_service_;
+
+        ros::Subscriber syscommand_subscriber_;
+
+        laser_geometry::LaserProjection projector_;
+        grid_map::GridMap grid_map_;
+
+        std::vector<Eigen::Vector3d> end_points_;
+    };
 
 }  // grid_map_2d_mapper
 

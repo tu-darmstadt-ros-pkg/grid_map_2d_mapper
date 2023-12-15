@@ -77,10 +77,11 @@ namespace grid_map_2d_mapper {
         private_nh_.param<double>("probability_free", probability_free_, 0.4);
         //private_nh_.param<bool>("no_mapping", no_mapping_, false);
 
-        // Floor filtering
-        private_nh_.param<double>("max_floor_height", max_floor_height_, 0.1);
-        private_nh_.param<double>("min_floor_height", min_floor_height_, -0.1);
+        // Floor filtering Parameters
+        //private_nh_.param<double>("max_floor_height", max_floor_height_, 0.1);
+        //private_nh_.param<double>("min_floor_height", min_floor_height_, -0.1);
         private_nh_.param<bool>("use_floor_filter", use_floor_filter_, false);
+        private_nh_.param<std::string>("robot_base_frame", robot_base_frame_, "base_link");
 
         int concurrency_level;
         private_nh_.param<int>("concurrency_level", concurrency_level, 1);
@@ -117,43 +118,22 @@ namespace grid_map_2d_mapper {
             sub_.registerCallback(boost::bind(&GridMap2DMapperNodelet::cloudCb, this, _1));
         }
 
-        //pub_ = nh_.advertise<sensor_msgs::LaserScan>("scan", 10,
-        //                                             boost::bind(&GridMap2DMapperNodelet::connectCb, this),
-        //                                             boost::bind(&GridMap2DMapperNodelet::disconnectCb, this));
-
-        //map_pub_ = nh_.advertise<nav_msgs::OccupancyGrid>("/map",10,false);
-
         pub_ = nh_.advertise<sensor_msgs::LaserScan>("scan", 10, false);
-
         map_pub_ = nh_.advertise<nav_msgs::OccupancyGrid>("/map", 10);
-        //                                                  boost::bind(&GridMap2DMapperNodelet::connectCb, this),
-        //                                                  boost::bind(&GridMap2DMapperNodelet::disconnectCb, this));
-
-
         map_throttled_pub_ = nh_.advertise<nav_msgs::OccupancyGrid>("/map_throttled", 10);
-        //boost::bind(&GridMap2DMapperNodelet::connectCb, this),
-        //boost::bind(&GridMap2DMapperNodelet::disconnectCb, this));
-
         map_service_ = private_nh_.advertiseService("map", &GridMap2DMapperNodelet::mapServiceCallback, this);
-
-
         grid_map_pub_ = nh_.advertise<grid_map_msgs::GridMap>("/debug_map", 10, false);
 
         syscommand_subscriber_ = nh_.subscribe("syscommand", 10, &GridMap2DMapperNodelet::syscommandCallback, this);
-
         sub_.subscribe(nh_, "/scan_matched_points2", input_queue_size_);
 
         grid_map_.add("occupancy_log_odds");
         grid_map_.add("occupancy_prob");
-        //grid_map_.add("update_time");
         grid_map_.setGeometry(grid_map::Length(2.0, 2.0), 0.05);
         grid_map_.setFrameId(map_frame_);
 
-
         log_odds_free_ = probToLogOdds(probability_free_);
         log_odds_occ_ = probToLogOdds(probability_occ_);
-
-
         min_log_odds_ = log_odds_free_ * 20;
         max_log_odds_ = log_odds_occ_ * 20;
         ROS_INFO("log odds free: %f log odds occ: %f", log_odds_free_, log_odds_occ_);
@@ -187,29 +167,27 @@ namespace grid_map_2d_mapper {
         }
     }
 
-    void
-    GridMap2DMapperNodelet::reconfigureCallback(grid_map_2d_mapper::GridMap2DMapperConfig &config, uint32_t level) {
+    void GridMap2DMapperNodelet::reconfigureCallback(grid_map_2d_mapper::GridMap2DMapperConfig &config,
+                                                     uint32_t level) {
         ROS_INFO("Reconfigure Request: %f %f", config.min_height, config.max_height);
-
         min_height_ = config.min_height;
         max_height_ = config.max_height;
         no_mapping_ = !config.mapping_active;
+        min_floor_height_ = config.min_floor_height;
+        max_floor_height_ = config.max_floor_height;
     }
 
     void GridMap2DMapperNodelet::failureCb(const sensor_msgs::PointCloud2ConstPtr &cloud_msg,
                                            tf2_ros::filter_failure_reasons::FilterFailureReason reason) {
-        NODELET_WARN_STREAM_THROTTLE(1.0,
-                                     "Can't transform pointcloud from frame " << cloud_msg->header.frame_id << " to "
-                                                                              << message_filter_->getTargetFramesString());
+        NODELET_WARN_STREAM_THROTTLE(1.0, "Can't transform pointcloud from frame " <<
+                                                                                   cloud_msg->header.frame_id << " to "
+                                                                                   << message_filter_->getTargetFramesString());
     }
 
     void GridMap2DMapperNodelet::mapThrottledPubTimer(const ros::TimerEvent &event) {
         if (map_throttled_pub_.getNumSubscribers() > 0) {
-
             grid_map::Matrix &grid_data = grid_map_["occupancy_log_odds"];
-
             grid_map::Matrix &grid_data_prob = grid_map_["occupancy_prob"];
-
 
             //grid_map::GridMapRosConverter::toOccupancyGrid()
             size_t total_size = grid_data.rows() * grid_data.cols();
@@ -226,21 +204,15 @@ namespace grid_map_2d_mapper {
             }
 
             nav_msgs::OccupancyGrid occ_grid_msg;
-
             grid_map::GridMapRosConverter::toOccupancyGrid(grid_map_, "occupancy_prob", 0.0, 1.0, occ_grid_msg);
             map_throttled_pub_.publish(occ_grid_msg);
-
         }
     }
 
-    bool GridMap2DMapperNodelet::mapServiceCallback(nav_msgs::GetMap::Request &req,
-                                                    nav_msgs::GetMap::Response &res) {
+    bool GridMap2DMapperNodelet::mapServiceCallback(nav_msgs::GetMap::Request &req, nav_msgs::GetMap::Response &res) {
         ROS_INFO("grid_mapper_2d map service called");
-
         grid_map::Matrix &grid_data = grid_map_["occupancy_log_odds"];
-
         grid_map::Matrix &grid_data_prob = grid_map_["occupancy_prob"];
-
 
         //grid_map::GridMapRosConverter::toOccupancyGrid()
         size_t total_size = grid_data.rows() * grid_data.cols();
@@ -262,27 +234,9 @@ namespace grid_map_2d_mapper {
     }
 
     void GridMap2DMapperNodelet::cloudCb(const sensor_msgs::PointCloud2ConstPtr &cloud_msg) {
-        // Initialize a new LaserScan message
-        // A LaserScan message contains an array of ranges. Each range corresponds to a specific angle.
+        // Initialize LaserScan message
         sensor_msgs::LaserScanPtr laser_scan_out = boost::make_shared<sensor_msgs::LaserScan>();
-
-        // Set basic properties of the LaserScan message
-        laser_scan_out->header = cloud_msg->header;
-        if (!target_frame_.empty()) {
-            laser_scan_out->header.frame_id = target_frame_;
-        }
-        laser_scan_out->angle_min = angle_min_;
-        laser_scan_out->angle_max = angle_max_;
-        laser_scan_out->angle_increment = angle_increment_;
-        laser_scan_out->time_increment = 0.0;
-        laser_scan_out->scan_time = scan_time_;
-        laser_scan_out->range_min = range_min_;
-        laser_scan_out->range_max = range_max_;
-
-        // Calculate the number of rays in the LaserScan
-        uint32_t ranges_size = std::ceil(
-                (laser_scan_out->angle_max - laser_scan_out->angle_min) / laser_scan_out->angle_increment);
-        laser_scan_out->ranges.assign(ranges_size,use_inf_ ? std::numeric_limits<double>::infinity() : laser_scan_out->range_max + 1.0);
+        initializeLaserScan(laser_scan_out, cloud_msg);
 
         // Transform the point cloud if necessary
         sensor_msgs::PointCloud2ConstPtr cloud_out;
@@ -300,51 +254,9 @@ namespace grid_map_2d_mapper {
         }
 
         pcl::PointCloud<pcl::PointXYZ> cloud_filtered;
-        // After the following loop:
-        // cloud_filtered should only contain wall points, but no floor or ceiling points
-        // laser_scan_out should only contain wall points, projected onto a plane
-
-        // Process each point in the cloud and filter out invalid points.
-        // Project the point cloud onto a plane and generate laserscan data
-        for (sensor_msgs::PointCloud2ConstIterator<float> iter_x(*cloud_out, "x"), iter_y(*cloud_out, "y"), iter_z(
-                *cloud_out, "z"); iter_x != iter_x.end(); ++iter_x, ++iter_y, ++iter_z) {
-            // Filter out NaN points
-            if (std::isnan(*iter_x) || std::isnan(*iter_y) || std::isnan(*iter_z)) {
-                NODELET_DEBUG("Rejected NaN point(%f, %f, %f)", *iter_x, *iter_y, *iter_z);
-                continue;
-            }
-            // Filter points outside of the height bounds
-            if (*iter_z > max_height_ || *iter_z < min_height_) {
-                NODELET_DEBUG("rejected for height %f not in range (%f, %f)\n", *iter_z, min_height_, max_height_);
-                continue;
-            }
-            // Filter points based on range
-            double range = hypot(*iter_x, *iter_y);
-            if (range < range_min_) {
-                NODELET_DEBUG("rejected for range %f below minimum value %f. Point: (%f, %f, %f)", range, range_min_,
-                              *iter_x, *iter_y,
-                              *iter_z);
-                continue;
-            }
-            // Filter points based on angle
-            double angle = atan2(*iter_y, *iter_x);
-            if (angle < laser_scan_out->angle_min || angle > laser_scan_out->angle_max) {
-                NODELET_DEBUG("rejected for angle %f not in range (%f, %f)\n", angle, laser_scan_out->angle_min,
-                              laser_scan_out->angle_max);
-                continue;
-            }
-
-            // Update the corresponding range in the LaserScan message if the new range is smaller than the old one
-            int index = (angle - laser_scan_out->angle_min) / laser_scan_out->angle_increment;
-            if (range < laser_scan_out->ranges[index]) {
-                laser_scan_out->ranges[index] = range;
-            }
-
-            // Optionally accumulate all points for downsampling
-            if (!downsample_cloud_) {
-                cloud_filtered.emplace_back(*iter_x, *iter_y, *iter_z);
-            }
-        }
+        filterPointCloudForWalls(cloud_out, cloud_filtered, laser_scan_out);
+        // cloud_filtered contains all points that are within height, range and angle bounds and is 3D
+        // laser_scan_out contains all points that are within height, range and angle bounds and is 2D
 
         pub_.publish(laser_scan_out);
         if (no_mapping_)
@@ -365,7 +277,8 @@ namespace grid_map_2d_mapper {
         ros::Duration wait_duration(1.0);
         geometry_msgs::TransformStamped to_world_tf;
         try {
-            to_world_tf = tf2_->lookupTransform(map_frame_, cloud_reduced.header.frame_id, cloud_reduced.header.stamp,wait_duration);
+            to_world_tf = tf2_->lookupTransform(map_frame_, cloud_reduced.header.frame_id, cloud_reduced.header.stamp,
+                                                wait_duration);
         } catch (tf2::TransformException &ex) {
             ROS_WARN("Cannot lookup transform, skipping map update!: %s", ex.what());
             return;
@@ -381,7 +294,9 @@ namespace grid_map_2d_mapper {
         Eigen::Vector2d max_coords(std::numeric_limits<double>::lowest(), std::numeric_limits<double>::lowest());
 
         // Find max and min coords of all points, to determine map size
-        for (sensor_msgs::PointCloud2ConstIterator<float> iter_x(cloud_reduced, "x"), iter_y(cloud_reduced, "y"), iter_z(cloud_reduced, "z");
+        for (sensor_msgs::PointCloud2ConstIterator<float> iter_x(cloud_reduced, "x"), iter_y(cloud_reduced,
+                                                                                             "y"), iter_z(cloud_reduced,
+                                                                                                          "z");
              iter_x != iter_x.end(); ++iter_x, ++iter_y, ++iter_z) {
             Eigen::Vector3d end_point(cloud_to_world_eigen * Eigen::Vector3d(*iter_x, *iter_y, *iter_z));
 
@@ -408,7 +323,8 @@ namespace grid_map_2d_mapper {
             grid_map::Position end_point_position(end_point.x(), end_point.y());
             curr_ray.clear();
 
-            for (grid_map::LineIterator iterator(grid_map_, sensor_position,end_point_position); !iterator.isPastEnd(); ++iterator) {
+            for (grid_map::LineIterator iterator(grid_map_, sensor_position,
+                                                 end_point_position); !iterator.isPastEnd(); ++iterator) {
                 curr_ray.emplace_back(*iterator);
             }
 
@@ -433,44 +349,53 @@ namespace grid_map_2d_mapper {
             }
         }
 
-        // fill gridmap floor where no wall was detected
-        if(use_floor_filter_){
+        // fill gridmap floor where no wall was detected;
+        if (use_floor_filter_) {
+            // Get transform from cloud to robot base frame. The min and max height bounds are in reference to
+            // the robot base frame
+            geometry_msgs::TransformStamped to_robot_base_tf;
+            try {
+                to_robot_base_tf = tf2_->lookupTransform(robot_base_frame_, cloud_reduced.header.frame_id,
+                                                         cloud_reduced.header.stamp, wait_duration);
+            } catch (tf2::TransformException &ex) {
+                ROS_WARN("Cannot lookup transform, skipping map update!: %s", ex.what());
+                return;
+            }
+            Eigen::Affine3d cloud_to_robot_base_eigen = tf2::transformToEigen(to_robot_base_tf);
+
             for (sensor_msgs::PointCloud2ConstIterator<float> iter_x(*cloud_out, "x"), iter_y(*cloud_out, "y"), iter_z(
-                    *cloud_out, "z");
-                 iter_x != iter_x.end(); ++iter_x, ++iter_y, ++iter_z) {
+                    *cloud_out, "z"); iter_x != iter_x.end(); ++iter_x, ++iter_y, ++iter_z) {
 
                 // Filter out NaN points
                 if (std::isnan(*iter_x) || std::isnan(*iter_y) || std::isnan(*iter_z)) {
-                    NODELET_DEBUG("Rejected NaN point(%f, %f, %f)", *iter_x, *iter_y, *iter_z);
                     continue;
                 }
                 // Filter points based on range
                 double range = hypot(*iter_x, *iter_y);
                 if (range < range_min_) {
-                    NODELET_DEBUG("rejected for range %f below minimum value %f. Point: (%f, %f, %f)", range, range_min_,
-                                  *iter_x, *iter_y,
-                                  *iter_z);
                     continue;
                 }
                 // Filter points based on angle
                 double angle = atan2(*iter_y, *iter_x);
                 if (angle < laser_scan_out->angle_min || angle > laser_scan_out->angle_max) {
-                    NODELET_DEBUG("rejected for angle %f not in range (%f, %f)\n", angle, laser_scan_out->angle_min,
-                                  laser_scan_out->angle_max);
+                    continue;
+                }
+
+                // Filter points outside the height bounds
+                Eigen::Vector3d floor_point_from_robot_base(
+                        cloud_to_robot_base_eigen * Eigen::Vector3d(*iter_x, *iter_y, *iter_z));
+                if (floor_point_from_robot_base.z() < min_floor_height_ ||
+                    floor_point_from_robot_base.z() > max_floor_height_) {
                     continue;
                 }
 
                 Eigen::Vector3d floor_point(cloud_to_world_eigen * Eigen::Vector3d(*iter_x, *iter_y, *iter_z));
                 grid_map::Position floor_point_position(floor_point.x(), floor_point.y());
-                // Filter points outside the height bounds
-                if (floor_point.z() < min_floor_height_ && floor_point.z() > max_floor_height_) {
-                    NODELET_DEBUG("rejected for height %f not in range (%f, %f)\n", floor_point.z(), min_floor_height_, max_floor_height_);
-                    continue;
-                }
 
                 // Only fill floor if no wall was detected, or where the laser scan has no data (inf)
                 int laser_index = (angle - laser_scan_out->angle_min) / laser_scan_out->angle_increment;
-                if (laser_scan_out->ranges[laser_index] == (use_inf_ ? std::numeric_limits<double>::infinity() : laser_scan_out->range_max + 1.0)) {
+                if (laser_scan_out->ranges[laser_index] ==
+                    (use_inf_ ? std::numeric_limits<double>::infinity() : laser_scan_out->range_max + 1.0)) {
                     grid_map::Index index;
                     if (grid_map_.getIndex(floor_point_position, index)) {
                         if (std::isnan(grid_data(index(0), index(1)))) {
@@ -487,34 +412,102 @@ namespace grid_map_2d_mapper {
             grid_map_pub_.publish(grid_map_msg);
         }
 
-        // Turn map into binary map and publish
+        // Turn grid_data into binary map and publish as OccupancyGrid
         if (map_pub_.getNumSubscribers() > 0) {
-            grid_map::Matrix &grid_data_prob = grid_map_["occupancy_prob"];
+            map_pub_.publish(convertGridDataToOccupancyGrid(grid_data));
+        }
+    }
 
-            //grid_map::GridMapRosConverter::toOccupancyGrid()
-            size_t total_size = grid_data.rows() * grid_data.cols();
-            for (size_t i = 0; i < total_size; ++i) {
-                const float &cell = grid_data.data()[i];
-                if (cell != cell) {
-                    grid_data_prob.data()[i] = cell;
-                } else if (cell < 0.0) {
-                    grid_data_prob.data()[i] = 0.0;
-                } else {
-                    grid_data_prob.data()[i] = 1.0;
-                }
+    void GridMap2DMapperNodelet::initializeLaserScan(sensor_msgs::LaserScanPtr &laser_scan_out,
+                                                     const sensor_msgs::PointCloud2ConstPtr &cloud_msg) {
+        // A LaserScan message contains an array of ranges. Each range corresponds to a specific angle.
+
+        // Set basic properties of the LaserScan message
+        laser_scan_out->header = cloud_msg->header;
+        if (!target_frame_.empty()) {
+            laser_scan_out->header.frame_id = target_frame_;
+        }
+        laser_scan_out->angle_min = angle_min_;
+        laser_scan_out->angle_max = angle_max_;
+        laser_scan_out->angle_increment = angle_increment_;
+        laser_scan_out->time_increment = 0.0;
+        laser_scan_out->scan_time = scan_time_;
+        laser_scan_out->range_min = range_min_;
+        laser_scan_out->range_max = range_max_;
+
+        // Calculate the number of rays in the LaserScan
+        uint32_t ranges_size = std::ceil((laser_scan_out->angle_max - laser_scan_out->angle_min) / laser_scan_out->angle_increment);
+        laser_scan_out->ranges.assign(ranges_size, use_inf_ ? std::numeric_limits<double>::infinity() : laser_scan_out->range_max + 1.0);
+    }
+
+    void GridMap2DMapperNodelet::filterPointCloudForWalls(const sensor_msgs::PointCloud2ConstPtr &cloud_out,
+                                                          pcl::PointCloud<pcl::PointXYZ> &cloud_filtered,
+                                                          sensor_msgs::LaserScanPtr &laser_scan_out) const {
+        for (sensor_msgs::PointCloud2ConstIterator<float> iter_x(*cloud_out, "x"), iter_y(*cloud_out, "y"), iter_z(
+                *cloud_out, "z"); iter_x != iter_x.end(); ++iter_x, ++iter_y, ++iter_z) {
+            float x = *iter_x;
+            float y = *iter_y;
+            float z = *iter_z;
+
+            // Filter out NaN points
+            if (std::isnan(x) || std::isnan(y) || std::isnan(z)) {
+                continue;
             }
 
-            nav_msgs::OccupancyGrid occ_grid_msg;
-            grid_map::GridMapRosConverter::toOccupancyGrid(grid_map_, "occupancy_prob", 0.0, 1.0, occ_grid_msg);
-            map_pub_.publish(occ_grid_msg);
+            // Filter points outside the height bounds
+            if (z > max_height_ || z < min_height_) {
+                continue;
+            }
+
+            // Filter points based on range
+            double range = hypot(x, y);
+            if (range < range_min_) {
+                continue;
+            }
+
+            // Filter points based on angle
+            double angle = atan2(y, x);
+            if (angle < laser_scan_out->angle_min || angle > laser_scan_out->angle_max) {
+                continue;
+            }
+
+            // Update the corresponding range in the LaserScan message if the new range is smaller than the old one
+            int index = (angle - laser_scan_out->angle_min) / laser_scan_out->angle_increment;
+            if (range < laser_scan_out->ranges[index]) {
+                laser_scan_out->ranges[index] = range;
+            }
+
+            // Optionally accumulate all points for downsampling
+            if (!downsample_cloud_) {
+                cloud_filtered.emplace_back(x, y, z);
+            }
         }
+    }
+
+    nav_msgs::OccupancyGrid GridMap2DMapperNodelet::convertGridDataToOccupancyGrid(const grid_map::Matrix &grid_data) {
+        grid_map::Matrix &grid_data_prob = grid_map_["occupancy_prob"];
+        size_t total_size = grid_data.rows() * grid_data.cols();
+
+        for (size_t i = 0; i < total_size; ++i) {
+            const float &cell = grid_data.data()[i];
+            if (cell != cell) {
+                grid_data_prob.data()[i] = cell;
+            } else if (cell < 0.0) {
+                grid_data_prob.data()[i] = 0.0;
+            } else {
+                grid_data_prob.data()[i] = 1.0;
+            }
+        }
+
+        nav_msgs::OccupancyGrid occ_grid_msg;
+        grid_map::GridMapRosConverter::toOccupancyGrid(grid_map_, "occupancy_prob", 0.0, 1.0, occ_grid_msg);
+        return occ_grid_msg;
     }
 
     float GridMap2DMapperNodelet::probToLogOdds(float prob) {
         float odds = prob / (1.0f - prob);
         return log(odds);
     }
-
 }
 
 PLUGINLIB_EXPORT_CLASS(grid_map_2d_mapper::GridMap2DMapperNodelet, nodelet::Nodelet);
