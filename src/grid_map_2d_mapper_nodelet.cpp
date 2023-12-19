@@ -1,7 +1,7 @@
 /*
  * Software License Agreement (BSD License)
  *
- *  Copyright (c) 2017, Stefan Kohlbrecher, TU Darmstadt
+ *  Copyright (c) 2023, Stefan Kohlbrecher, Jonas Süß, Martin Volz, TU Darmstadt
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
